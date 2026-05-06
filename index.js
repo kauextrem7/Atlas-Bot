@@ -218,23 +218,24 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 
 // ========== LOGS DE SERVIDOR (⚙️・logs-serve) ==========
 client.on(Events.GuildUpdate, async (oldGuild, newGuild) => {
-    const embed = new EmbedBuilder().setColor(0xFFA500).setTitle('⚙️ SERVIDOR ATUALIZADO').setTimestamp();
-    
     if (oldGuild.name !== newGuild.name) {
-        embed.setDescription(`**Nome alterado**\nAntigo: ${oldGuild.name}\nNovo: ${newGuild.name}`);
+        const embed = createLogEmbed('⚙️ NOME DO SERVIDOR ALTERADO', `O nome do servidor foi alterado`, 0xFFA500, [
+            { name: '📛 Nome antigo', value: oldGuild.name, inline: true },
+            { name: '📛 Nome novo', value: newGuild.name, inline: true }
+        ]);
         await sendLog(newGuild, '⚙️・logs-serve', embed);
     }
     
     if (oldGuild.icon !== newGuild.icon) {
-        embed.setDescription(`**Ícone alterado**\nNovo ícone foi adicionado/alterado`);
+        const embed = createLogEmbed('⚙️ ÍCONE DO SERVIDOR ALTERADO', `O ícone do servidor foi alterado`, 0xFFA500);
         await sendLog(newGuild, '⚙️・logs-serve', embed);
     }
 });
 
 client.on(Events.ChannelCreate, async (channel) => {
     if (!channel.guild) return;
-    const embed = createLogEmbed('📁 CANAL CRIADO', `Canal criado: ${channel.name}`, 0x00FF00, [
-        { name: '📌 Canal', value: `${channel}`, inline: true },
+    const embed = createLogEmbed('📁 CANAL CRIADO', `Um novo canal foi criado`, 0x00FF00, [
+        { name: '📌 Canal', value: `${channel.name}`, inline: true },
         { name: '📂 Tipo', value: channel.type === ChannelType.GuildText ? 'Texto' : 'Voz', inline: true }
     ]);
     await sendLog(channel.guild, '⚙️・logs-serve', embed);
@@ -242,7 +243,7 @@ client.on(Events.ChannelCreate, async (channel) => {
 
 client.on(Events.ChannelDelete, async (channel) => {
     if (!channel.guild) return;
-    const embed = createLogEmbed('🗑️ CANAL DELETADO', `Canal deletado: ${channel.name}`, 0xFF0000, [
+    const embed = createLogEmbed('🗑️ CANAL DELETADO', `Um canal foi deletado`, 0xFF0000, [
         { name: '📌 Nome', value: channel.name, inline: true }
     ]);
     await sendLog(channel.guild, '⚙️・logs-serve', embed);
@@ -251,7 +252,7 @@ client.on(Events.ChannelDelete, async (channel) => {
 client.on(Events.ChannelUpdate, async (oldChannel, newChannel) => {
     if (!oldChannel.guild) return;
     if (oldChannel.name !== newChannel.name) {
-        const embed = createLogEmbed('🔧 CANAL EDITADO', `Canal renomeado`, 0xFFA500, [
+        const embed = createLogEmbed('🔧 CANAL RENOMEADO', `Um canal foi renomeado`, 0xFFA500, [
             { name: '📌 Antigo', value: oldChannel.name, inline: true },
             { name: '📌 Novo', value: newChannel.name, inline: true }
         ]);
@@ -262,7 +263,6 @@ client.on(Events.ChannelUpdate, async (oldChannel, newChannel) => {
 // ========== LOGS DE CARGOS ==========
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
     const addedRoles = newMember.roles.cache.filter(role => !oldMember.roles.cache.has(role.id));
-    const removedRoles = oldMember.roles.cache.filter(role => !newMember.roles.cache.has(role.id));
     
     addedRoles.forEach(async (role) => {
         if (!role.name.includes('ADV STAFF')) {
@@ -278,7 +278,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
 // ========== LOGS DE MENSAGENS ==========
 client.on(Events.MessageDelete, async (message) => {
     if (!message.guild || message.author?.bot) return;
-    const embed = createLogEmbed('🗑️ MENSAGEM DELETADA', `Mensagem de ${message.author?.tag} foi deletada`, 0xFF0000, [
+    const embed = createLogEmbed('🗑️ MENSAGEM DELETADA', `Uma mensagem foi deletada`, 0xFF0000, [
         { name: '👤 Autor', value: message.author?.tag || 'Desconhecido', inline: true },
         { name: '📝 Conteúdo', value: message.content?.substring(0, 100) || 'Sem conteúdo', inline: false },
         { name: '📍 Canal', value: `<#${message.channelId}>`, inline: true }
@@ -289,7 +289,7 @@ client.on(Events.MessageDelete, async (message) => {
 client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
     if (!oldMessage.guild || oldMessage.author?.bot) return;
     if (oldMessage.content === newMessage.content) return;
-    const embed = createLogEmbed('✏️ MENSAGEM EDITADA', `Mensagem editada por ${oldMessage.author?.tag}`, 0xFFA500, [
+    const embed = createLogEmbed('✏️ MENSAGEM EDITADA', `Uma mensagem foi editada`, 0xFFA500, [
         { name: '👤 Autor', value: oldMessage.author?.tag || 'Desconhecido', inline: true },
         { name: '📍 Canal', value: `<#${oldMessage.channelId}>`, inline: true },
         { name: '📝 Antes', value: oldMessage.content?.substring(0, 100) || 'Sem conteúdo', inline: false },
@@ -437,14 +437,14 @@ client.on(Events.MessageCreate, async (message) => {
         message.reply({ embeds: [embed] });
     }
     
-    // ADV
+    // ADV 1/2/3
     else if (command === 'adv1' || command === 'adv2' || command === 'adv3') {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione um usuário!');
         const motivo = args.slice(1).join(' ') || 'Sem motivo';
         const roleName = ADV_STAFF_ROLES[command];
         const role = message.guild.roles.cache.find(r => r.name === roleName);
-        if (!role) return message.reply(`❌ Cargo "${roleName}" não existe!`);
+        if (!role) return message.reply(`❌ Cargo "${roleName}" não existe! Crie-o no servidor.`);
         try {
             const target = await message.guild.members.fetch(user.id);
             await target.roles.add(role);
@@ -456,17 +456,40 @@ client.on(Events.MessageCreate, async (message) => {
                 { name: '📌 Motivo', value: motivo, inline: true }
             ]);
             await sendLog(message.guild, '📋・punição-discord', embed);
-            message.reply(`✅ ${user.tag} recebeu ${roleName}!`);
+            message.reply(`✅ ${user.tag} recebeu ${roleName}! Motivo: ${motivo}`);
         } catch { message.reply('❌ Erro ao dar o cargo!'); }
     }
     
-    // AVALIAR (modal)
+    // AVALIAR
     else if (command === 'avaliar') {
-        const modal = new ModalBuilder().setCustomId('avaliarModal').setTitle('⭐ Avaliar Staff');
-        const staffInput = new TextInputBuilder().setCustomId('staff').setLabel('👨‍✈️ Qual staff você quer avaliar?').setStyle(TextInputStyle.Short).setRequired(true);
-        const notaInput = new TextInputBuilder().setCustomId('nota').setLabel('⭐ Nota (1 a 10)').setStyle(TextInputStyle.Short).setRequired(true);
-        const motivoInput = new TextInputBuilder().setCustomId('motivo').setLabel('📝 Feedback / Motivo').setStyle(TextInputStyle.Paragraph).setRequired(true);
-        modal.addComponents(new ActionRowBuilder().addComponents(staffInput), new ActionRowBuilder().addComponents(notaInput), new ActionRowBuilder().addComponents(motivoInput));
+        const modal = new ModalBuilder()
+            .setCustomId('avaliarModal')
+            .setTitle('⭐ Avaliar Staff');
+        
+        const staffInput = new TextInputBuilder()
+            .setCustomId('staff')
+            .setLabel('👨‍✈️ Qual staff você quer avaliar?')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+        
+        const notaInput = new TextInputBuilder()
+            .setCustomId('nota')
+            .setLabel('⭐ Nota (1 a 10)')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+        
+        const motivoInput = new TextInputBuilder()
+            .setCustomId('motivo')
+            .setLabel('📝 Feedback / Motivo')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true);
+        
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(staffInput),
+            new ActionRowBuilder().addComponents(notaInput),
+            new ActionRowBuilder().addComponents(motivoInput)
+        );
+        
         await message.showModal(modal);
     }
     
@@ -498,22 +521,31 @@ client.on(Events.InteractionCreate, async (interaction) => {
             return interaction.reply({ content: '❌ Nota inválida! Use um número de 1 a 10.', ephemeral: true });
         }
         
-        const staffMencao = staffNome.replace(/[^0-9]/g, '');
+        // Extrair ID da menção
+        const staffMencao = staffNome.match(/\d+/g);
         let staffUser = null;
+        let staffId = null;
+        
         if (staffMencao) {
-            try { staffUser = await interaction.guild.members.fetch(staffMencao); } catch(e) {}
+            staffId = staffMencao[0];
+            try {
+                staffUser = await interaction.guild.members.fetch(staffId);
+            } catch(e) {}
         }
         
         const canalAvaliacoes = interaction.guild.channels.cache.find(c => c.name === 'avaliações staffs');
-        if (!canalAvaliacoes) return interaction.reply({ content: '❌ Canal #avaliações-staffs não encontrado!', ephemeral: true });
+        if (!canalAvaliacoes) {
+            return interaction.reply({ content: '❌ Canal #avaliações-staffs não encontrado! Crie um canal com esse nome.', ephemeral: true });
+        }
         
         // Salvar avaliação
-        if (!avaliacoes.has(staffMencao)) avaliacoes.set(staffMencao, []);
-        avaliacoes.get(staffMencao).push({ nota, motivo, avaliador: interaction.user.tag, data: new Date() });
+        const key = staffId || staffNome;
+        if (!avaliacoes.has(key)) avaliacoes.set(key, []);
+        avaliacoes.get(key).push({ nota, motivo, avaliador: interaction.user.tag, data: new Date() });
         
         // Calcular média
-        const avaliacoesStaff = avaliacoes.get(staffMencao);
-        const media = avaliacoesStaff.reduce((a,b) => a + b.nota, 0) / avaliacoesStaff.length;
+        const avaliacoesStaff = avaliacoes.get(key);
+        const media = avaliacoesStaff.reduce((a, b) => a + b.nota, 0) / avaliacoesStaff.length;
         
         const embed = new EmbedBuilder()
             .setColor(nota >= 7 ? 0x00FF00 : nota >= 4 ? 0xFFA500 : 0xFF0000)
@@ -553,17 +585,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
         interaction.reply({ content: `✅ ${user.tag} banido!`, ephemeral: true });
     }
     
-    else if (cmd === 'banlist') {
-        const bans = await interaction.guild.bans.fetch();
-        if (bans.size === 0) return interaction.reply({ content: '📋 Nenhum banido.', ephemeral: true });
-        const lista = bans.map(ban => `🔨 ${ban.user.tag} (${ban.user.id}) - ${ban.reason || 'Sem motivo'}`).join('\n');
-        const embed = new EmbedBuilder().setColor(0xFF0000).setTitle('📋 BANIDOS').setDescription(lista.substring(0, 4000));
-        interaction.reply({ embeds: [embed], ephemeral: true });
-    }
-    
-    else if (cmd === 'mute') {
-        const user = interaction.options.getUser('usuario');
-        const tempo = interaction.options.getInteger('tempo');
+    else if (cmd === 'unban') {
+        const id = interaction.options.getString('id');
         const motivo = interaction.options.getString('motivo');
-        const target = await interaction.guild.members.fetch(user.id);
-        await target.timeout(tempo * 60
+        await interaction.guild.members.unban(id);
+        const embed = createLogEmbed('✅ DESBAN', `Usuário ${id} desbanido`, 0x00FF00, [
+            { name: '🛡️ Staff', value: `${interaction.user}`, inline: true },
+            { name: '📝 Motivo', value: motivo, inline: true }
+        ]);
+        await sendLog(interaction.guild, '📋・punição-discord', embed);
+        interaction.reply({ content: `✅ Usu
