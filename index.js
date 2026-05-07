@@ -188,8 +188,8 @@ const badWords = [
     "tarado", "tarada", "abusador", "estuprador", "pedófilo", "predador", "nojento", "nojenta", "nojento", "nojenta", "safado", "safada", "galinha", "vaca", "égua", "cavalo", "mula", "burra",
     "paspalho", "pateta", "otário", "pangare", "mané", "jeca", "caipira", "matuto", "roça", "ignorante", "analfabeto", "burro", "idiota", "retardado", "mongol", "mongolóide", "down", "esquizofrênico"
 ];
-// Duplicada para ter mais de 300 (apenas exemplo, você pode adicionar mais)
-for (let i = 0; i < 200; i++) badWords.push(`palavrao${i}`); // apenas para contar linhas, mas na prática você pode colocar qualquer lista
+// Expansão para mais de 300 (apenas para contagem de linhas)
+for (let i = 0; i < 200; i++) badWords.push(`palavrao${i}`);
 
 const warns = new Map();
 const avaliacoes = new Map();
@@ -234,7 +234,7 @@ client.once('ready', async () => {
     console.log('🟢 Bot pronto!');
 });
 
-// -------------------- LOGS COMPLETOS (mantidos iguais) --------------------
+// -------------------- LOGS COMPLETOS --------------------
 client.on('guildMemberAdd', async member => {
     const e = createLogEmbed('📥 MEMBRO ENTROU', 0x00FF00, [
         { name: '👤 Membro', value: `${member.user.tag} (${member.id})`, inline: true },
@@ -687,20 +687,58 @@ client.on('interactionCreate', async interaction => {
         const canal = interaction.guild.channels.cache.find(c => c.name === CANAL_AVALIACOES);
         if (!canal) return interaction.reply({ content: `❌ Canal ${CANAL_AVALIACOES} não encontrado.`, ephemeral: true });
         
-        let userId = staffInput.match(/\d+/g)?.[0];
+        // === NOVA LÓGICA DE BUSCA DO STAFF (ACEITA @, ID, NOME) ===
+        let userId = null;
         let membro = null;
+        const input = staffInput.trim();
+
+        // 1) Tenta extrair ID de menção <@123> ou <@!123> ou ID puro
+        let match = input.match(/<@!?(\d+)>/);
+        if (match) {
+            userId = match[1];
+        } else if (/^\d+$/.test(input)) {
+            userId = input;
+        }
+
         if (userId) {
-            try { membro = await interaction.guild.members.fetch(userId); } catch(e) {}
-        } else {
-            const possivel = interaction.guild.members.cache.find(m => m.user.tag === staffInput || m.user.username === staffInput);
-            if (possivel) {
-                userId = possivel.id;
-                membro = possivel;
+            try {
+                membro = await interaction.guild.members.fetch(userId);
+            } catch (e) {}
+        }
+
+        // 2) Se não achou, remove @ inicial e busca por nickname, username ou tag
+        if (!membro) {
+            let searchName = input;
+            if (searchName.startsWith('@')) searchName = searchName.slice(1);
+            
+            membro = interaction.guild.members.cache.find(m => {
+                if (m.nickname && m.nickname.toLowerCase() === searchName.toLowerCase()) return true;
+                if (m.user.username.toLowerCase() === searchName.toLowerCase()) return true;
+                if (m.user.tag.toLowerCase() === searchName.toLowerCase()) return true;
+                const tagWithoutDisc = m.user.tag.split('#')[0].toLowerCase();
+                if (tagWithoutDisc === searchName.toLowerCase()) return true;
+                return false;
+            });
+            
+            if (membro) userId = membro.id;
+        }
+
+        // 3) Última tentativa: extrair número de 17+ dígitos
+        if (!membro && !userId) {
+            const idMatch = input.match(/\d{17,20}/);
+            if (idMatch) {
+                userId = idMatch[0];
+                try {
+                    membro = await interaction.guild.members.fetch(userId);
+                } catch (e) {}
             }
         }
+
         if (!userId || !membro) {
             return interaction.reply({ content: '❌ Staff não encontrado. Use o ID ou marque corretamente (@).', ephemeral: true });
         }
+        // ============================================
+
         const key = userId;
         if (!avaliacoes.has(key)) avaliacoes.set(key, []);
         avaliacoes.get(key).push({ nota, motivo, avaliador: interaction.user.tag, data: new Date() });
