@@ -5,7 +5,7 @@ const express = require('express');
 const app = express();
 const port = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Bot Atlas RP está online'));
-app.listen(port, () => console.log(`✅ Web server rodando na porta ${port}`));
+app.listen(port, () => console.log(`✅ Web server na porta ${port}`));
 
 // ==================== CANAIS ====================
 const CANAL_MEMBROS = '📥・logs-membros';
@@ -162,28 +162,28 @@ async function criarCanaisLog(guild) {
     }
 }
 
-// ==================== SLASH COMMANDS ====================
+// ==================== SLASH COMMANDS (com todas as descrições) ====================
 const slashCommands = [
     // Públicos
     { name: 'avaliar', description: '⭐ Avaliar staff (1-10) - Todos' },
-    { name: 'media', description: 'Média do staff', options: [{ name: 'staff', type: 6, description: 'Staff', required: true }] },
+    { name: 'media', description: 'Média do staff', options: [{ name: 'staff', type: 6, description: 'Staff a ser consultado', required: true }] },
     { name: 'ranking', description: 'Ranking dos staffs' },
-    { name: 'ajuda', description: 'Comandos' },
+    { name: 'ajuda', description: 'Mostrar comandos' },
     // Moderação
-    { name: 'ban', description: 'Banir', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'unban', description: 'Desbanir', options: [{ name: 'id', type: 3, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'banlist', description: 'Lista de banidos' },
-    { name: 'mute', description: 'Mutar', options: [{ name: 'usuario', type: 6, required: true }, { name: 'tempo', type: 4, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'unmute', description: 'Desmutar', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'warn', description: 'Advertir', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'warns', description: 'Ver warns', options: [{ name: 'usuario', type: 6, required: true }] },
+    { name: 'ban', description: 'Banir membro', options: [{ name: 'usuario', type: 6, description: 'Usuário a ser banido', required: true }, { name: 'motivo', type: 3, description: 'Motivo do banimento', required: true }] },
+    { name: 'unban', description: 'Desbanir membro', options: [{ name: 'id', type: 3, description: 'ID do usuário', required: true }, { name: 'motivo', type: 3, description: 'Motivo do desbanimento', required: true }] },
+    { name: 'banlist', description: 'Listar membros banidos' },
+    { name: 'mute', description: 'Mutar membro', options: [{ name: 'usuario', type: 6, description: 'Usuário a ser mutado', required: true }, { name: 'tempo', type: 4, description: 'Tempo em minutos', required: true }, { name: 'motivo', type: 3, description: 'Motivo do mute', required: true }] },
+    { name: 'unmute', description: 'Desmutar membro', options: [{ name: 'usuario', type: 6, description: 'Usuário a ser desmutado', required: true }, { name: 'motivo', type: 3, description: 'Motivo', required: true }] },
+    { name: 'warn', description: 'Advertir membro', options: [{ name: 'usuario', type: 6, description: 'Usuário a ser advertido', required: true }, { name: 'motivo', type: 3, description: 'Motivo da advertência', required: true }] },
+    { name: 'warns', description: 'Ver warns de um membro', options: [{ name: 'usuario', type: 6, description: 'Usuário', required: true }] },
     // Staff
-    { name: 'adv', description: 'Atribuir ADV STAFF (1,2,3)' },
-    { name: 'promover', description: 'Promover staff', options: [{ name: 'usuario', type: 6, description: 'Membro', required: true }, { name: 'motivo', type: 3, description: 'Motivo', required: true }] },
-    { name: 'rebaixar', description: 'Rebaixar staff', options: [{ name: 'usuario', type: 6, description: 'Membro', required: true }, { name: 'motivo', type: 3, description: 'Motivo', required: true }] },
-    { name: 'demitir', description: 'Demitir staff', options: [{ name: 'usuario', type: 6, description: 'Membro', required: true }, { name: 'motivo', type: 3, description: 'Motivo', required: true }] },
-    { name: 'advertir-staff', description: 'Advertir staff', options: [{ name: 'usuario', type: 6, description: 'Membro', required: true }, { name: 'motivo', type: 3, description: 'Motivo', required: true }] },
-    { name: 'tirarcooldown', description: 'Remover cooldown avaliação', options: [{ name: 'usuario', type: 6, description: 'Membro', required: true }] }
+    { name: 'adv', description: 'Atribuir cargo ADV STAFF (1,2,3)' },
+    { name: 'promover', description: 'Promover membro da staff', options: [{ name: 'usuario', type: 6, description: 'Membro a ser promovido', required: true }, { name: 'motivo', type: 3, description: 'Motivo da promoção', required: true }] },
+    { name: 'rebaixar', description: 'Rebaixar membro da staff', options: [{ name: 'usuario', type: 6, description: 'Membro a ser rebaixado', required: true }, { name: 'motivo', type: 3, description: 'Motivo do rebaixamento', required: true }] },
+    { name: 'demitir', description: 'Demitir membro da staff', options: [{ name: 'usuario', type: 6, description: 'Membro a ser demitido', required: true }, { name: 'motivo', type: 3, description: 'Motivo da demissão', required: true }] },
+    { name: 'advertir-staff', description: 'Advertir um membro da staff', options: [{ name: 'usuario', type: 6, description: 'Membro da staff', required: true }, { name: 'motivo', type: 3, description: 'Motivo da advertência', required: true }] },
+    { name: 'tirarcooldown', description: 'Remover cooldown de avaliação', options: [{ name: 'usuario', type: 6, description: 'Membro', required: true }] }
 ];
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 async function regComandos() {
@@ -473,7 +473,7 @@ client.on('messageCreate', async message => {
         let desc = '';
         for (let i=0;i<rank.length;i++) {
             const m = await message.guild.members.fetch(rank[i].id).catch(()=>null);
-            desc += `**${i+1}.** ${m ? m.user.tag : rank[i].id} - ${rank[i].media.toFixed(1)}/10 (${rank[i].total})\n`;
+            desc += `**${i+1}.** ${m ? m.user.tag : rank[i].id} - ${rank[i].media.toFixed(1)}/10 (${rank[i].total})`;
         }
         const embed = new EmbedBuilder().setColor(0xFFD700).setTitle('🏆 RANKING').setDescription(desc);
         return message.reply({ embeds: [embed] });
@@ -567,7 +567,6 @@ client.on('messageCreate', async message => {
         const embed = new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(desc);
         return message.reply({ embeds: [embed] });
     }
-    // Redirecionar comandos avançados para slash
     if (cmd === 'promover' || cmd === 'rebaixar' || cmd === 'demitir' || cmd === 'advertir-staff' || cmd === 'tirarcooldown' || cmd === 'adv') {
         return message.reply(`❌ Use o comando slash \`/${cmd}\` para abrir o painel.`);
     }
@@ -742,7 +741,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Comandos de staff avançados – já usam o usuário diretamente (não modal)
+    // Comandos de staff avançados (com opção de usuário diretamente)
     if (cmd === 'promover') {
         const usuario = interaction.options.getUser('usuario');
         const motivo = interaction.options.getString('motivo');
@@ -800,7 +799,6 @@ client.on('interactionCreate', async interaction => {
         if (cargoAtual.nivel === 0) return interaction.reply({ content: `❌ ${target.user.tag} não tem cargo staff.`, ephemeral: true });
         const cargoRole = interaction.guild.roles.cache.find(r => r.name === cargoAtual.nome);
         if (cargoRole) await target.roles.remove(cargoRole);
-        // Não remove o cargo "Staff"
         const embed = createLogEmbed('❌ DEMISSÃO', 0xFF0000, [
             { name: '👤 Staff', value: `${target.user.tag} (${target.id})` },
             { name: '📛 Cargo', value: cargoAtual.nome },
@@ -813,17 +811,17 @@ client.on('interactionCreate', async interaction => {
     if (cmd === 'advertir-staff' && podeAdvertirStaff(member)) {
         const usuario = interaction.options.getUser('usuario');
         const motivo = interaction.options.getString('motivo');
-        const target = usuario.id;
-        if (!staffWarns.has(target)) staffWarns.set(target, []);
-        staffWarns.get(target).push({ motivo, staff: executor, date: new Date() });
+        const targetId = usuario.id;
+        if (!staffWarns.has(targetId)) staffWarns.set(targetId, []);
+        staffWarns.get(targetId).push({ motivo, staff: executor, date: new Date() });
         const embed = createLogEmbed('⚠️ ADVERTÊNCIA STAFF', 0xFFA500, [
-            { name: '👤 Staff', value: `${usuario.tag} (${target})` },
+            { name: '👤 Staff', value: `${usuario.tag} (${targetId})` },
             { name: '🛡️ Advertido por', value: executor },
             { name: '📝 Motivo', value: motivo },
-            { name: '📊 Total', value: `${staffWarns.get(target).length}` }
+            { name: '📊 Total', value: `${staffWarns.get(targetId).length}` }
         ], usuario.displayAvatarURL());
         await sendLog(interaction.guild, CANAL_ADVERTENCIA, embed);
-        return interaction.reply({ content: `✅ ${usuario.tag} advertido por ${executor}. Total: ${staffWarns.get(target).length}`, ephemeral: true });
+        return interaction.reply({ content: `✅ ${usuario.tag} advertido por ${executor}. Total: ${staffWarns.get(targetId).length}`, ephemeral: true });
     }
     if (cmd === 'tirarcooldown' && podeTirarCooldown(member)) {
         const usuario = interaction.options.getUser('usuario');
