@@ -119,7 +119,6 @@ function barraNota(nota) {
     return '▰'.repeat(preenchidos) + '▱'.repeat(total - preenchidos);
 }
 async function getCargoAtual(member) {
-    // Retorna o cargo de staff de maior nível (ignora "Staff" se houver cargo maior)
     let maxNivel = 0;
     let cargoNome = null;
     for (let [cargo, nivel] of Object.entries(CARGOS_LEVEL)) {
@@ -128,7 +127,6 @@ async function getCargoAtual(member) {
             cargoNome = cargo;
         }
     }
-    // Se só tem "Staff" (nível 1), retorna ele
     if (maxNivel === 0) {
         if (member.roles.cache.some(r => r.name === 'Staff')) return { nome: 'Staff', nivel: 1 };
         return { nome: null, nivel: 0 };
@@ -162,14 +160,12 @@ async function criarCanaisLog(guild) {
     }
 }
 
-// ==================== SLASH COMMANDS (com todas as descrições) ====================
+// ==================== SLASH COMMANDS ====================
 const slashCommands = [
-    // Públicos
     { name: 'avaliar', description: '⭐ Avaliar staff (1-10) - Todos' },
     { name: 'media', description: 'Média do staff', options: [{ name: 'staff', type: 6, description: 'Staff a ser consultado', required: true }] },
     { name: 'ranking', description: 'Ranking dos staffs' },
     { name: 'ajuda', description: 'Mostrar comandos' },
-    // Moderação
     { name: 'ban', description: 'Banir membro', options: [{ name: 'usuario', type: 6, description: 'Usuário a ser banido', required: true }, { name: 'motivo', type: 3, description: 'Motivo do banimento', required: true }] },
     { name: 'unban', description: 'Desbanir membro', options: [{ name: 'id', type: 3, description: 'ID do usuário', required: true }, { name: 'motivo', type: 3, description: 'Motivo do desbanimento', required: true }] },
     { name: 'banlist', description: 'Listar membros banidos' },
@@ -177,7 +173,6 @@ const slashCommands = [
     { name: 'unmute', description: 'Desmutar membro', options: [{ name: 'usuario', type: 6, description: 'Usuário a ser desmutado', required: true }, { name: 'motivo', type: 3, description: 'Motivo', required: true }] },
     { name: 'warn', description: 'Advertir membro', options: [{ name: 'usuario', type: 6, description: 'Usuário a ser advertido', required: true }, { name: 'motivo', type: 3, description: 'Motivo da advertência', required: true }] },
     { name: 'warns', description: 'Ver warns de um membro', options: [{ name: 'usuario', type: 6, description: 'Usuário', required: true }] },
-    // Staff
     { name: 'adv', description: 'Atribuir cargo ADV STAFF (1,2,3)' },
     { name: 'promover', description: 'Promover membro da staff', options: [{ name: 'usuario', type: 6, description: 'Membro a ser promovido', required: true }, { name: 'motivo', type: 3, description: 'Motivo da promoção', required: true }] },
     { name: 'rebaixar', description: 'Rebaixar membro da staff', options: [{ name: 'usuario', type: 6, description: 'Membro a ser rebaixado', required: true }, { name: 'motivo', type: 3, description: 'Motivo do rebaixamento', required: true }] },
@@ -218,7 +213,6 @@ async function enviarMensagemAvaliacao(guild) {
     const channel = guild.channels.cache.find(c => c.name === CANAL_AVALIACOES && c.isTextBased());
     if (!channel) return;
     try {
-        // Apaga apenas a mensagem do bot
         if (avaliacaoMensagemAtual) {
             try {
                 const msgAntiga = await channel.messages.fetch(avaliacaoMensagemAtual.id).catch(() => null);
@@ -657,7 +651,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Comandos de staff – verificar permissão básica (nível >=1)
     if (getNivel(member) === 0) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
 
     // Comandos de moderação via slash
@@ -741,7 +734,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Comandos de staff avançados (com opção de usuário diretamente)
+    // Comandos de staff avançados
     if (cmd === 'promover') {
         const usuario = interaction.options.getUser('usuario');
         const motivo = interaction.options.getString('motivo');
@@ -795,18 +788,23 @@ client.on('interactionCreate', async interaction => {
         const usuario = interaction.options.getUser('usuario');
         const motivo = interaction.options.getString('motivo');
         const target = await interaction.guild.members.fetch(usuario.id);
-        const cargoAtual = await getCargoAtual(target);
-        if (cargoAtual.nivel === 0) return interaction.reply({ content: `❌ ${target.user.tag} não tem cargo staff.`, ephemeral: true });
-        const cargoRole = interaction.guild.roles.cache.find(r => r.name === cargoAtual.nome);
-        if (cargoRole) await target.roles.remove(cargoRole);
+        const cargosParaRemover = Object.keys(CARGOS_LEVEL); // Todos os cargos da hierarquia
+        let cargosRemovidos = [];
+        for (const cargoNome of cargosParaRemover) {
+            const role = interaction.guild.roles.cache.find(r => r.name === cargoNome);
+            if (role && target.roles.cache.has(role.id)) {
+                await target.roles.remove(role);
+                cargosRemovidos.push(cargoNome);
+            }
+        }
         const embed = createLogEmbed('❌ DEMISSÃO', 0xFF0000, [
             { name: '👤 Staff', value: `${target.user.tag} (${target.id})` },
-            { name: '📛 Cargo', value: cargoAtual.nome },
+            { name: '📛 Cargos removidos', value: cargosRemovidos.join(', ') || 'Nenhum' },
             { name: '🛡️ Demitido por', value: executor },
             { name: '📝 Motivo', value: motivo }
         ], target.user.displayAvatarURL());
         await sendLog(interaction.guild, CANAL_DEMITIDO, embed);
-        return interaction.reply({ content: `✅ ${target.user.tag} demitido por ${executor}.`, ephemeral: true });
+        return interaction.reply({ content: `✅ ${target.user.tag} foi demitido e perdeu todos os cargos de staff.`, ephemeral: true });
     }
     if (cmd === 'advertir-staff' && podeAdvertirStaff(member)) {
         const usuario = interaction.options.getUser('usuario');
