@@ -2,6 +2,7 @@ const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, Events, RE
 require('dotenv').config();
 const express = require('express');
 
+// Servidor web para Render
 const app = express();
 const port = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Bot Atlas RP está online'));
@@ -82,7 +83,7 @@ const podeTirarCooldown = m => getNivel(m) >= 2;
 const cooldownAvaliacao = new Map();
 const COOLDOWN_TIME = 15 * 60 * 1000;
 
-// ==================== FUNÇÕES AUXILIARES ====================
+// ==================== FUNÇÕES GLOBAIS ====================
 async function sendLog(guild, channelName, embed) {
     const channel = guild.channels.cache.find(c => c.name === channelName && c.isTextBased());
     if (channel) await channel.send({ embeds: [embed] }).catch(() => {});
@@ -180,11 +181,67 @@ const warns = new Map();
 const avaliacoes = new Map();
 const staffWarns = new Map();
 
+// Variável para armazenar a mensagem de avaliação rotativa
+let avaliacaoMensagemAtual = null;
+let intervaloAvaliacao = null;
+
 client.once('ready', async () => {
     console.log(`✅ Bot ${client.user.tag} online!`);
     client.user.setPresence({ activities: [{ name: 'Atlas RP | &ajuda', type: 0 }], status: 'online' });
     const guild = client.guilds.cache.get(process.env.GUILD_ID);
-    if (guild) await criarCanaisLog(guild);
+    if (guild) {
+        await criarCanaisLog(guild);
+        
+        // Inicia o sistema de mensagem rotativa no canal de avaliações (a cada 1 minuto)
+        const channel = guild.channels.cache.find(c => c.name === CANAL_AVALIACOES && c.isTextBased());
+        if (channel) {
+            // Apaga mensagem anterior se existir e envia nova a cada 60 segundos
+            if (intervaloAvaliacao) clearInterval(intervaloAvaliacao);
+            intervaloAvaliacao = setInterval(async () => {
+                try {
+                    if (avaliacaoMensagemAtual) {
+                        await avaliacaoMensagemAtual.delete().catch(() => {});
+                    }
+                    const embed = new EmbedBuilder()
+                        .setColor(0x00FFCC)
+                        .setTitle('⭐ Como avaliar um staff?')
+                        .setDescription('Sua opinião é muito importante para nós! Use o comando abaixo para avaliar um membro da equipe.')
+                        .addFields(
+                            { name: '📌 Comando', value: '`/avaliar` ou `&avaliar`', inline: false },
+                            { name: '👨‍✈️ Exemplo', value: '`/avaliar`\nNo campo **Staff**, digite o **ID** do membro entre `<@>`.\nExemplo: `<@123456789012345678>`\n\nVocê também pode mencionar diretamente: `@Fulano`', inline: false },
+                            { name: '⭐ Nota', value: 'De **1** a **10** (apenas números inteiros).', inline: true },
+                            { name: '📝 Feedback', value: 'Digite um comentário construtivo sobre o atendimento ou atuação do staff.', inline: true },
+                            { name: '🕒 Cooldown', value: 'Você pode avaliar a cada **15 minutos**.', inline: false }
+                        )
+                        .setFooter({ text: 'Equipe Atlas RP – Sua avaliação nos ajuda a melhorar!' });
+                    const novaMsg = await channel.send({ embeds: [embed] });
+                    avaliacaoMensagemAtual = novaMsg;
+                } catch (err) {
+                    console.error('Erro ao enviar mensagem rotativa de avaliação:', err);
+                }
+            }, 60000); // 60 segundos = 1 minuto
+            // Força a primeira execução após 1 segundo
+            setTimeout(async () => {
+                if (avaliacaoMensagemAtual) await avaliacaoMensagemAtual.delete().catch(() => {});
+                const embed = new EmbedBuilder()
+                    .setColor(0x00FFCC)
+                    .setTitle('⭐ Como avaliar um staff?')
+                    .setDescription('Sua opinião é muito importante para nós! Use o comando abaixo para avaliar um membro da equipe.')
+                    .addFields(
+                        { name: '📌 Comando', value: '`/avaliar` ou `&avaliar`', inline: false },
+                        { name: '👨‍✈️ Exemplo', value: '`/avaliar`\nNo campo **Staff**, digite o **ID** do membro entre `<@>`.\nExemplo: `<@123456789012345678>`\n\nVocê também pode mencionar diretamente: `@Fulano`', inline: false },
+                        { name: '⭐ Nota', value: 'De **1** a **10** (apenas números inteiros).', inline: true },
+                        { name: '📝 Feedback', value: 'Digite um comentário construtivo sobre o atendimento ou atuação do staff.', inline: true },
+                        { name: '🕒 Cooldown', value: 'Você pode avaliar a cada **15 minutos**.', inline: false }
+                    )
+                    .setFooter({ text: 'Equipe Atlas RP – Sua avaliação nos ajuda a melhorar!' });
+                const novaMsg = await channel.send({ embeds: [embed] });
+                avaliacaoMensagemAtual = novaMsg;
+            }, 1000);
+        } else {
+            console.log(`⚠️ Canal ${CANAL_AVALIACOES} não encontrado para mensagem rotativa.`);
+        }
+    }
     await regComandos();
     console.log('🟢 Bot pronto!');
 });
@@ -369,7 +426,7 @@ client.on('messageCreate', async msg => {
             { name: '🚫 Motivo', value: reason, inline: true },
             { name: '📝 Conteúdo', value: msg.content.slice(0, 500), inline: false }
         ], msg.author.displayAvatarURL());
-        await sendLog(msg.guild, CANAL_BOOSTS, embed); // ← CANAL_AUTOMOD
+        await sendLog(msg.guild, CANAL_AUTOMOD, embed);
     }
 });
 
@@ -381,7 +438,7 @@ client.on('messageCreate', async message => {
     const cmd = args.shift().toLowerCase();
     const member = message.member;
 
-    // Públicos (avaliar, media, ranking)
+    // Comandos públicos
     if (cmd === 'avaliar') {
         const now = Date.now();
         const last = cooldownAvaliacao.get(message.author.id);
@@ -420,10 +477,9 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [embed] });
     }
 
-    // Verifica permissão mínima
     if (getNivel(member) === 0) return message.reply('❌ Você não tem permissão.');
 
-    // Comandos que usam modal (painel)
+    // Comandos de staff com modal
     if (cmd === 'promover' || cmd === 'rebaixar' || cmd === 'demitir' || cmd === 'advertir-staff' || cmd === 'tirarcooldown') {
         const modal = new ModalBuilder()
             .setCustomId(`${cmd}Modal`)
@@ -436,7 +492,7 @@ client.on('messageCreate', async message => {
         return;
     }
 
-    // Comandos diretos (ban, unban, mute, unmute, warn, warns, adv1/2/3)
+    // Comandos diretos (ban, mute, etc.)
     if (cmd === 'ban' && podeBan(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione um usuário.');
@@ -588,6 +644,7 @@ client.on('messageCreate', async message => {
 
 // ==================== INTERAÇÕES (MODAIS E SLASH) ====================
 client.on('interactionCreate', async interaction => {
+    // Modais (comandos staff)
     if (interaction.isModalSubmit()) {
         const cmd = interaction.customId.replace('Modal', '');
         const usuarioInput = interaction.fields.getTextInputValue('usuario');
@@ -597,7 +654,6 @@ client.on('interactionCreate', async interaction => {
         if (!target) return interaction.reply({ content: '❌ Usuário não encontrado.', ephemeral: true });
         const executor = interaction.user.tag;
         const member = interaction.member;
-        const embed = (title, color, fields) => createLogEmbed(title, color, fields, target.user.displayAvatarURL());
 
         if (cmd === 'promover') {
             if (!podePromover(member)) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
@@ -611,13 +667,13 @@ client.on('interactionCreate', async interaction => {
             if (!cargoRole) return interaction.reply({ content: `❌ Cargo ${novoCargoNome} não encontrado.`, ephemeral: true });
             await target.roles.remove(cargoAntigoRole);
             await target.roles.add(cargoRole);
-            const log = embed('⭐ PROMOÇÃO DE STAFF', 0x00FF00, [
+            const log = createLogEmbed('⭐ PROMOÇÃO DE STAFF', 0x00FF00, [
                 { name: '👤 Staff', value: `${target.user.tag} (${target.id})`, inline: true },
                 { name: '📈 De', value: cargoAtual.nome, inline: true },
                 { name: '📈 Para', value: novoCargoNome, inline: true },
                 { name: '🛡️ Promovido por', value: executor, inline: true },
                 { name: '📝 Motivo', value: motivo, inline: true }
-            ]);
+            ], target.user.displayAvatarURL());
             await sendLog(interaction.guild, CANAL_PROMOVIDO, log);
             return interaction.reply({ content: `✅ ${target.user.tag} promovido de ${cargoAtual.nome} para ${novoCargoNome}.`, ephemeral: true });
         }
@@ -629,15 +685,16 @@ client.on('interactionCreate', async interaction => {
             const novoCargoNome = getCargoNome(novoNivel);
             const cargoRole = interaction.guild.roles.cache.find(r => r.name === novoCargoNome);
             const cargoAntigoRole = interaction.guild.roles.cache.find(r => r.name === cargoAtual.nome);
+            if (!cargoRole) return interaction.reply({ content: `❌ Cargo ${novoCargoNome} não encontrado.`, ephemeral: true });
             await target.roles.remove(cargoAntigoRole);
             await target.roles.add(cargoRole);
-            const log = embed('👇 REBAIXAMENTO DE STAFF', 0xFFA500, [
+            const log = createLogEmbed('👇 REBAIXAMENTO DE STAFF', 0xFFA500, [
                 { name: '👤 Staff', value: `${target.user.tag} (${target.id})`, inline: true },
                 { name: '📉 De', value: cargoAtual.nome, inline: true },
                 { name: '📉 Para', value: novoCargoNome, inline: true },
                 { name: '🛡️ Rebaixado por', value: executor, inline: true },
                 { name: '📝 Motivo', value: motivo, inline: true }
-            ]);
+            ], target.user.displayAvatarURL());
             await sendLog(interaction.guild, CANAL_REBAIXADO, log);
             return interaction.reply({ content: `✅ ${target.user.tag} rebaixado de ${cargoAtual.nome} para ${novoCargoNome}.`, ephemeral: true });
         }
@@ -647,12 +704,12 @@ client.on('interactionCreate', async interaction => {
             if (cargoAtual.nivel === 0) return interaction.reply({ content: `❌ ${target.user.tag} não possui cargo.`, ephemeral: true });
             const cargoRole = interaction.guild.roles.cache.find(r => r.name === cargoAtual.nome);
             await target.roles.remove(cargoRole);
-            const log = embed('❌ DEMISSÃO DE STAFF', 0xFF0000, [
+            const log = createLogEmbed('❌ DEMISSÃO DE STAFF', 0xFF0000, [
                 { name: '👤 Staff', value: `${target.user.tag} (${target.id})`, inline: true },
-                { name: '📛 Cargo', value: cargoAtual.nome, inline: true },
+                { name: '📛 Cargo anterior', value: cargoAtual.nome, inline: true },
                 { name: '🛡️ Demitido por', value: executor, inline: true },
                 { name: '📝 Motivo', value: motivo, inline: true }
-            ]);
+            ], target.user.displayAvatarURL());
             await sendLog(interaction.guild, CANAL_DEMITIDO, log);
             return interaction.reply({ content: `✅ ${target.user.tag} foi demitido.`, ephemeral: true });
         }
@@ -660,12 +717,12 @@ client.on('interactionCreate', async interaction => {
             if (!podeAdvertirStaff(member)) return interaction.reply({ content: '❌ Apenas Supervisor+ pode advertir staff.', ephemeral: true });
             if (!staffWarns.has(target.id)) staffWarns.set(target.id, []);
             staffWarns.get(target.id).push({ motivo, staff: executor, data: new Date() });
-            const log = embed('⚠️ ADVERTÊNCIA DE STAFF', 0xFFA500, [
+            const log = createLogEmbed('⚠️ ADVERTÊNCIA DE STAFF', 0xFFA500, [
                 { name: '👤 Staff', value: `${target.user.tag} (${target.id})`, inline: true },
                 { name: '🛡️ Advertido por', value: executor, inline: true },
                 { name: '📝 Motivo', value: motivo, inline: true },
                 { name: '📌 Total', value: `${staffWarns.get(target.id).length}`, inline: true }
-            ]);
+            ], target.user.displayAvatarURL());
             await sendLog(interaction.guild, CANAL_ADVERTENCIA, log);
             return interaction.reply({ content: `✅ ${target.user.tag} recebeu advertência.`, ephemeral: true });
         }
@@ -680,16 +737,227 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
+    // Slash commands (públicos e staff)
     if (!interaction.isChatInputCommand()) return;
     const cmd = interaction.commandName;
     const member = interaction.member;
     const executor = interaction.user.tag;
 
-    // Slash commands – implementação similar aos de prefixo, mas adaptada
-    // (devido ao limite de caracteres, omito a repetição, mas garanto que todos os slash commands funcionam.
-    // O código final completo deve incluir cada slash command. Como o chat tem limite, recomendo que você use o código acima,
-    // que já contém a lógica completa para prefixo e modais, e os slash commands ficam registrados mas a implementação
-    // pode ser adicionada sob demanda. Prefere que eu adicione agora a implementação completa de cada slash command?)
+    // Públicos
+    if (cmd === 'avaliar') {
+        const now = Date.now();
+        const last = cooldownAvaliacao.get(interaction.user.id);
+        if (last && (now - last) < COOLDOWN_TIME) {
+            const remaining = Math.ceil((COOLDOWN_TIME - (now - last)) / 60000);
+            return interaction.reply({ content: `⏳ Você pode avaliar novamente em ${remaining} minuto(s).`, ephemeral: true });
+        }
+        cooldownAvaliacao.set(interaction.user.id, now);
+        const modal = new ModalBuilder().setCustomId('avaliarModal').setTitle('⭐ Avaliar Staff');
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('staff').setLabel('Staff (@ ou nome)').setStyle(TextInputStyle.Short).setRequired(true)),
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('nota').setLabel('Nota (1 a 10)').setStyle(TextInputStyle.Short).setRequired(true)),
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('motivo').setLabel('Feedback').setStyle(TextInputStyle.Paragraph).setRequired(true))
+        );
+        return interaction.showModal(modal);
+    }
+    if (cmd === 'media') {
+        const staff = interaction.options.getMember('staff');
+        const avs = avaliacoes.get(staff.id);
+        if (!avs || !avs.length) return interaction.reply({ content: `📋 ${staff.user.tag} sem avaliações.`, ephemeral: true });
+        const media = avs.reduce((a,b)=>a+b.nota,0)/avs.length;
+        const embed = new EmbedBuilder().setColor(0x00FF00).setTitle(`⭐ Média de ${staff.user.tag}`).setDescription(`${media.toFixed(1)}/10\n${barraNota(media)}\nTotal: ${avs.length} avaliações`);
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+    if (cmd === 'ranking') {
+        const rank = Array.from(avaliacoes.entries()).map(([id,list])=>({id, media: list.reduce((a,b)=>a+b.nota,0)/list.length, total: list.length})).sort((a,b)=>b.media-a.media).slice(0,10);
+        if (!rank.length) return interaction.reply({ content: '📋 Nenhuma avaliação.', ephemeral: true });
+        let desc = '';
+        for (let r of rank) {
+            const m = await interaction.guild.members.fetch(r.id).catch(()=>null);
+            desc += `**${rank.indexOf(r)+1}.** ${m ? m.user.tag : r.id} - ${r.media.toFixed(1)}/10 (${r.total} avaliações)\n`;
+        }
+        const embed = new EmbedBuilder().setColor(0xFFD700).setTitle('🏆 RANKING DE STAFFS').setDescription(desc);
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    // Staff-only commands (nível 1+)
+    if (getNivel(member) === 0) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
+
+    if (cmd === 'ban' && podeBan(member)) {
+        const user = interaction.options.getUser('usuario');
+        const motivo = interaction.options.getString('motivo');
+        await interaction.guild.members.ban(user.id, { reason: motivo });
+        const embed = createLogEmbed('🔨 BAN (SLASH)', 0xFF0000, [
+            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: true },
+            { name: '🛡️ Staff', value: executor, inline: true },
+            { name: '📝 Motivo', value: motivo, inline: true }
+        ], user.displayAvatarURL());
+        await sendLog(interaction.guild, CANAL_PUNICOES, embed);
+        return interaction.reply({ content: `✅ ${user.tag} banido.`, ephemeral: true });
+    }
+    if (cmd === 'unban' && podeUnban(member)) {
+        const id = interaction.options.getString('id');
+        const motivo = interaction.options.getString('motivo');
+        try {
+            await interaction.guild.members.unban(id);
+            const embed = createLogEmbed('✅ DESBAN (SLASH)', 0x00FF00, [{ name: '🆔 ID', value: id }, { name: '🛡️ Staff', value: executor }, { name: '📝 Motivo', value: motivo }]);
+            await sendLog(interaction.guild, CANAL_PUNICOES, embed);
+            return interaction.reply({ content: `✅ Usuário ${id} desbanido.`, ephemeral: true });
+        } catch { return interaction.reply({ content: '❌ ID inválido.', ephemeral: true }); }
+    }
+    if (cmd === 'banlist' && podeBan(member)) {
+        const bans = await interaction.guild.bans.fetch();
+        if (!bans.size) return interaction.reply({ content: '📋 Nenhum banido.', ephemeral: true });
+        const lista = bans.map(ban => `🔨 ${ban.user.tag} (${ban.user.id}) - ${ban.reason || 'Sem motivo'}`).join('\n');
+        const embed = new EmbedBuilder().setColor(0xFF0000).setTitle('📋 LISTA DE BANIDOS').setDescription(lista.slice(0, 4000));
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+    if (cmd === 'mute' && podeMute(member)) {
+        const user = interaction.options.getUser('usuario');
+        const tempo = interaction.options.getInteger('tempo');
+        const motivo = interaction.options.getString('motivo');
+        const target = await interaction.guild.members.fetch(user.id);
+        await target.timeout(tempo * 60 * 1000, motivo);
+        const embed = createLogEmbed('🔇 MUTE (SLASH)', 0xFFA500, [
+            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: true },
+            { name: '🛡️ Staff', value: executor, inline: true },
+            { name: '⏱️ Duração', value: `${tempo} min`, inline: true },
+            { name: '📝 Motivo', value: motivo, inline: true }
+        ], user.displayAvatarURL());
+        await sendLog(interaction.guild, CANAL_PUNICOES, embed);
+        return interaction.reply({ content: `✅ ${user.tag} mutado por ${tempo} min.`, ephemeral: true });
+    }
+    if (cmd === 'unmute' && podeMute(member)) {
+        const user = interaction.options.getUser('usuario');
+        const motivo = interaction.options.getString('motivo');
+        const target = await interaction.guild.members.fetch(user.id);
+        await target.timeout(null);
+        const embed = createLogEmbed('🔊 DESMUTE (SLASH)', 0x00FF00, [
+            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: true },
+            { name: '🛡️ Staff', value: executor, inline: true },
+            { name: '📝 Motivo', value: motivo, inline: true }
+        ], user.displayAvatarURL());
+        await sendLog(interaction.guild, CANAL_PUNICOES, embed);
+        return interaction.reply({ content: `✅ ${user.tag} desmutado.`, ephemeral: true });
+    }
+    if (cmd === 'warn' && podeWarn(member)) {
+        const user = interaction.options.getUser('usuario');
+        const motivo = interaction.options.getString('motivo');
+        if (!warns.has(user.id)) warns.set(user.id, []);
+        warns.get(user.id).push({ reason: motivo, moderator: executor, date: new Date() });
+        const embed = createLogEmbed('⚠️ WARN (SLASH)', 0xFFA500, [
+            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: true },
+            { name: '🛡️ Staff', value: executor, inline: true },
+            { name: '📝 Motivo', value: motivo, inline: true },
+            { name: '📌 Total', value: `${warns.get(user.id).length}`, inline: true }
+        ], user.displayAvatarURL());
+        await sendLog(interaction.guild, CANAL_PUNICOES, embed);
+        return interaction.reply({ content: `✅ Warn em ${user.tag}. Total: ${warns.get(user.id).length}`, ephemeral: true });
+    }
+    if (cmd === 'warns' && podeWarn(member)) {
+        const user = interaction.options.getUser('usuario');
+        const list = warns.get(user.id);
+        if (!list || !list.length) return interaction.reply({ content: `📋 ${user.tag} não tem warns.`, ephemeral: true });
+        const desc = list.map((w,i)=>`**${i+1}** - ${w.reason} (por ${w.moderator})`).join('\n');
+        const embed = new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(desc);
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+    if (cmd === 'adv1' && podeAdv1(member)) {
+        const user = interaction.options.getUser('usuario');
+        const motivo = interaction.options.getString('motivo');
+        const role = interaction.guild.roles.cache.find(r => r.name === 'ADV STAFF 1');
+        if (!role) return interaction.reply({ content: '❌ Cargo ADV STAFF 1 não existe.', ephemeral: true });
+        const target = await interaction.guild.members.fetch(user.id);
+        await target.roles.add(role);
+        const embed = createLogEmbed('🏷️ ADV STAFF 1 (SLASH)', 0x00FF00, [
+            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: true },
+            { name: '🛡️ Staff', value: executor, inline: true },
+            { name: '📝 Motivo', value: motivo, inline: true }
+        ], user.displayAvatarURL());
+        await sendLog(interaction.guild, CANAL_ADVERTENCIA, embed);
+        return interaction.reply({ content: `✅ ADV STAFF 1 concedido.`, ephemeral: true });
+    }
+    if (cmd === 'adv2' && podeAdv2(member)) {
+        const user = interaction.options.getUser('usuario');
+        const motivo = interaction.options.getString('motivo');
+        const role = interaction.guild.roles.cache.find(r => r.name === 'ADV STAFF 2');
+        if (!role) return interaction.reply({ content: '❌ Cargo ADV STAFF 2 não existe.', ephemeral: true });
+        const target = await interaction.guild.members.fetch(user.id);
+        await target.roles.add(role);
+        const embed = createLogEmbed('🏷️ ADV STAFF 2 (SLASH)', 0x00FF00, [
+            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: true },
+            { name: '🛡️ Staff', value: executor, inline: true },
+            { name: '📝 Motivo', value: motivo, inline: true }
+        ], user.displayAvatarURL());
+        await sendLog(interaction.guild, CANAL_ADVERTENCIA, embed);
+        return interaction.reply({ content: `✅ ADV STAFF 2 concedido.`, ephemeral: true });
+    }
+    if (cmd === 'adv3' && podeAdv3(member)) {
+        const user = interaction.options.getUser('usuario');
+        const motivo = interaction.options.getString('motivo');
+        const role = interaction.guild.roles.cache.find(r => r.name === 'ADV STAFF 3');
+        if (!role) return interaction.reply({ content: '❌ Cargo ADV STAFF 3 não existe.', ephemeral: true });
+        const target = await interaction.guild.members.fetch(user.id);
+        await target.roles.add(role);
+        const embed = createLogEmbed('🏷️ ADV STAFF 3 (SLASH)', 0x00FF00, [
+            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: true },
+            { name: '🛡️ Staff', value: executor, inline: true },
+            { name: '📝 Motivo', value: motivo, inline: true }
+        ], user.displayAvatarURL());
+        await sendLog(interaction.guild, CANAL_ADVERTENCIA, embed);
+        return interaction.reply({ content: `✅ ADV STAFF 3 concedido.`, ephemeral: true });
+    }
+    if (cmd === 'promover') {
+        const modal = new ModalBuilder().setCustomId('promoverModal').setTitle('📋 Promover');
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('usuario').setLabel('Usuário (ID ou @)').setStyle(TextInputStyle.Short).setRequired(true)),
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('motivo').setLabel('Motivo').setStyle(TextInputStyle.Paragraph).setRequired(true))
+        );
+        return interaction.showModal(modal);
+    }
+    if (cmd === 'rebaixar') {
+        const modal = new ModalBuilder().setCustomId('rebaixarModal').setTitle('📋 Rebaixar');
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('usuario').setLabel('Usuário (ID ou @)').setStyle(TextInputStyle.Short).setRequired(true)),
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('motivo').setLabel('Motivo').setStyle(TextInputStyle.Paragraph).setRequired(true))
+        );
+        return interaction.showModal(modal);
+    }
+    if (cmd === 'demitir') {
+        const modal = new ModalBuilder().setCustomId('demitirModal').setTitle('📋 Demitir');
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('usuario').setLabel('Usuário (ID ou @)').setStyle(TextInputStyle.Short).setRequired(true)),
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('motivo').setLabel('Motivo').setStyle(TextInputStyle.Paragraph).setRequired(true))
+        );
+        return interaction.showModal(modal);
+    }
+    if (cmd === 'advertir-staff') {
+        const modal = new ModalBuilder().setCustomId('advertir-staffModal').setTitle('📋 Advertir Staff');
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('usuario').setLabel('Usuário (ID ou @)').setStyle(TextInputStyle.Short).setRequired(true)),
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('motivo').setLabel('Motivo').setStyle(TextInputStyle.Paragraph).setRequired(true))
+        );
+        return interaction.showModal(modal);
+    }
+    if (cmd === 'tirarcooldown') {
+        const modal = new ModalBuilder().setCustomId('tirarcooldownModal').setTitle('📋 Tirar Cooldown');
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('usuario').setLabel('Usuário (ID ou @)').setStyle(TextInputStyle.Short).setRequired(true))
+        );
+        return interaction.showModal(modal);
+    }
+    if (cmd === 'ajuda') {
+        const embed = new EmbedBuilder().setColor(0x0099FF).setTitle('📚 Atlas RP - Slash Commands')
+            .addFields(
+                { name: '👑 Líder/Desenvolvedor', value: '/ban, /unban, /adv3, /demitir', inline: true },
+                { name: '⭐ Coordenador', value: '/adv2, /mute, /unmute, /warn, /promover, /rebaixar', inline: true },
+                { name: '🛡️ Supervisor', value: '/adv1, /mute, /unmute, /warn, /advertir-staff', inline: true },
+                { name: '🔧 Admin', value: '/mute, /unmute, /warn', inline: true },
+                { name: '⭐ Todos', value: '/avaliar, /media, /ranking', inline: true },
+                { name: '🔧 Outros', value: '/banlist, /warns, /tirarcooldown', inline: true }
+            );
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
 });
 
 client.login(process.env.DISCORD_TOKEN);
