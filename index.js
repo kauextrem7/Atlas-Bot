@@ -42,7 +42,7 @@ const canaisLog = [
     { nome: CANAL_BOOSTS, desc: 'Boosts do servidor' }
 ];
 
-// ==================== HIERARQUIA (9 CARGOS) ====================
+// ==================== HIERARQUIA ====================
 const CARGOS_LEVEL = {
     'Staff': 1,
     'Estagiário(a)': 2,
@@ -74,7 +74,7 @@ function getNivel(member) {
     return 0;
 }
 
-// Permissões baseadas no nível do executor
+// Permissões baseadas no nível
 const podeBan = m => getNivel(m) >= 8;
 const podeUnban = m => getNivel(m) >= 8;
 const podeMute = m => getNivel(m) >= 1;
@@ -158,23 +158,26 @@ async function criarCanaisLog(guild) {
 
 // ==================== SLASH COMMANDS ====================
 const slashCommands = [
+    // Comandos públicos (todos veem)
     { name: 'avaliar', description: '⭐ Avaliar staff (1-10) - Todos' },
     { name: 'media', description: 'Média do staff', options: [{ name: 'staff', type: 6, required: true }] },
     { name: 'ranking', description: 'Ranking dos staffs' },
     { name: 'ajuda', description: 'Comandos' },
-    { name: 'ban', description: 'Banir membro', default_member_permissions: "0", options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'unban', description: 'Desbanir', default_member_permissions: "0", options: [{ name: 'id', type: 3, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'banlist', description: 'Lista de banidos', default_member_permissions: "0" },
-    { name: 'mute', description: 'Mutar', default_member_permissions: "0", options: [{ name: 'usuario', type: 6, required: true }, { name: 'tempo', type: 4, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'unmute', description: 'Desmutar', default_member_permissions: "0", options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'warn', description: 'Advertir', default_member_permissions: "0", options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'warns', description: 'Ver warns', default_member_permissions: "0", options: [{ name: 'usuario', type: 6, required: true }] },
-    { name: 'adv', description: 'Atribuir cargo ADV STAFF (1, 2 ou 3)', default_member_permissions: "0" },
-    { name: 'promover', description: 'Promover membro da staff', default_member_permissions: "0" },
-    { name: 'rebaixar', description: 'Rebaixar membro da staff', default_member_permissions: "0" },
-    { name: 'demitir', description: 'Demitir membro da staff', default_member_permissions: "0" },
-    { name: 'advertir-staff', description: 'Advertir um membro da staff', default_member_permissions: "0" },
-    { name: 'tirarcooldown', description: 'Remover cooldown de avaliação', default_member_permissions: "0" }
+
+    // Comandos de moderação (ocultos para quem não tem permissão)
+    { name: 'ban', description: 'Banir membro', default_member_permissions: 'BanMembers', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'unban', description: 'Desbanir', default_member_permissions: 'BanMembers', options: [{ name: 'id', type: 3, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'banlist', description: 'Lista de banidos', default_member_permissions: 'BanMembers' },
+    { name: 'mute', description: 'Mutar', default_member_permissions: 'ModerateMembers', options: [{ name: 'usuario', type: 6, required: true }, { name: 'tempo', type: 4, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'unmute', description: 'Desmutar', default_member_permissions: 'ModerateMembers', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'warn', description: 'Advertir', default_member_permissions: 'ModerateMembers', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'warns', description: 'Ver warns', default_member_permissions: 'ModerateMembers', options: [{ name: 'usuario', type: 6, required: true }] },
+    { name: 'adv', description: 'Atribuir cargo ADV STAFF (1,2,3)', default_member_permissions: 'ModerateMembers' },
+    { name: 'promover', description: 'Promover membro da staff', default_member_permissions: 'ModerateMembers' },
+    { name: 'rebaixar', description: 'Rebaixar membro da staff', default_member_permissions: 'ModerateMembers' },
+    { name: 'demitir', description: 'Demitir membro da staff', default_member_permissions: 'BanMembers' },
+    { name: 'advertir-staff', description: 'Advertir um membro da staff', default_member_permissions: 'ModerateMembers' },
+    { name: 'tirarcooldown', description: 'Remover cooldown de avaliação', default_member_permissions: 'ModerateMembers' }
 ];
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 async function regComandos() {
@@ -185,6 +188,7 @@ async function regComandos() {
     } catch (e) { console.error(e); }
 }
 
+// ==================== CLIENT ====================
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -438,6 +442,7 @@ client.on('messageCreate', async message => {
     const member = message.member;
     const executor = message.author.tag;
 
+    // Comandos públicos
     if (cmd === 'avaliar') return message.reply('⭐ Para avaliar um staff, use `/avaliar`.');
     if (cmd === 'media') {
         const user = message.mentions.users.first();
@@ -460,8 +465,10 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [embed] });
     }
 
+    // Se não é staff, bloqueia
     if (getNivel(member) === 0) return message.reply('❌ Sem permissão.');
 
+    // Comandos de moderação simples (via prefixo)
     if (cmd === 'ban' && podeBan(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione');
@@ -544,101 +551,14 @@ client.on('messageCreate', async message => {
         if (!user) return message.reply('❌ Mencione');
         const list = warns.get(user.id);
         if (!list || !list.length) return message.reply(`📋 ${user.tag} sem warns.`);
-        const desc = list.map((w,i)=>`${i+1} - ${w.reason} (por ${w.moderator} em ${new Date(w.date).toLocaleString('pt-BR')})`).join('\n');
+        const desc = list.map((w,i)=>`${i+1} - ${w.reason} (por ${w.moderator})`).join('\n');
         const embed = new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(desc);
         return message.reply({ embeds: [embed] });
     }
-    if (cmd === 'promover' && podePromover(member, await message.guild.members.fetch(message.mentions.users.first()?.id).catch(()=>null))) {
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione');
-        const motivo = args.slice(1).join(' ') || 'Sem motivo';
-        const target = await message.guild.members.fetch(user.id);
-        const cargoAtual = await getCargoAtual(target);
-        if (cargoAtual.nivel === 0) return message.reply(`❌ ${user.tag} não tem cargo staff.`);
-        const novoNivel = cargoAtual.nivel + 1;
-        if (novoNivel > 9) return message.reply(`❌ ${user.tag} já está no cargo máximo.`);
-        const novoCargoNome = getCargoNome(novoNivel);
-        const cargoRole = message.guild.roles.cache.find(r => r.name === novoCargoNome);
-        const cargoAntigoRole = message.guild.roles.cache.find(r => r.name === cargoAtual.nome);
-        if (!cargoRole) return message.reply(`❌ Cargo ${novoCargoNome} não existe.`);
-        await target.roles.remove(cargoAntigoRole);
-        await target.roles.add(cargoRole);
-        const embed = createLogEmbed('⭐ PROMOÇÃO', 0x00FF00, [
-            { name: '👤 Staff', value: `${user.tag} (${user.id})` },
-            { name: '📈 De', value: cargoAtual.nome },
-            { name: '📈 Para', value: novoCargoNome },
-            { name: '🛡️ Promovido por', value: executor },
-            { name: '📝 Motivo', value: motivo }
-        ], user.displayAvatarURL());
-        await sendLog(message.guild, CANAL_PROMOVIDO, embed);
-        return message.reply(`✅ ${user.tag} promovido de ${cargoAtual.nome} para ${novoCargoNome} por ${executor}.`);
+    // Comandos de staff (promover/rebaixar/etc) são apenas via slash – redirecionar
+    if (cmd === 'promover' || cmd === 'rebaixar' || cmd === 'demitir' || cmd === 'advertir-staff' || cmd === 'tirarcooldown' || cmd === 'adv') {
+        return message.reply(`❌ Use o comando slash \`/${cmd}\` para abrir o painel interativo.`);
     }
-    if (cmd === 'rebaixar' && podeRebaixar(member, await message.guild.members.fetch(message.mentions.users.first()?.id).catch(()=>null))) {
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione');
-        const motivo = args.slice(1).join(' ') || 'Sem motivo';
-        const target = await message.guild.members.fetch(user.id);
-        const cargoAtual = await getCargoAtual(target);
-        if (cargoAtual.nivel <= 1) return message.reply(`❌ ${user.tag} não pode ser rebaixado (já é Staff).`);
-        const novoNivel = cargoAtual.nivel - 1;
-        const novoCargoNome = getCargoNome(novoNivel);
-        const cargoRole = message.guild.roles.cache.find(r => r.name === novoCargoNome);
-        const cargoAntigoRole = message.guild.roles.cache.find(r => r.name === cargoAtual.nome);
-        if (!cargoRole) return message.reply(`❌ Cargo ${novoCargoNome} não existe.`);
-        await target.roles.remove(cargoAntigoRole);
-        await target.roles.add(cargoRole);
-        const embed = createLogEmbed('👇 REBAIXAMENTO', 0xFFA500, [
-            { name: '👤 Staff', value: `${user.tag} (${user.id})` },
-            { name: '📉 De', value: cargoAtual.nome },
-            { name: '📉 Para', value: novoCargoNome },
-            { name: '🛡️ Rebaixado por', value: executor },
-            { name: '📝 Motivo', value: motivo }
-        ], user.displayAvatarURL());
-        await sendLog(message.guild, CANAL_REBAIXADO, embed);
-        return message.reply(`✅ ${user.tag} rebaixado de ${cargoAtual.nome} para ${novoCargoNome} por ${executor}.`);
-    }
-    if (cmd === 'demitir' && podeDemitir(member)) {
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione');
-        const motivo = args.slice(1).join(' ') || 'Sem motivo';
-        const target = await message.guild.members.fetch(user.id);
-        const cargoAtual = await getCargoAtual(target);
-        if (cargoAtual.nivel === 0) return message.reply(`❌ ${user.tag} não tem cargo staff.`);
-        const cargoRole = message.guild.roles.cache.find(r => r.name === cargoAtual.nome);
-        await target.roles.remove(cargoRole);
-        const embed = createLogEmbed('❌ DEMISSÃO', 0xFF0000, [
-            { name: '👤 Staff', value: `${user.tag} (${user.id})` },
-            { name: '📛 Cargo', value: cargoAtual.nome },
-            { name: '🛡️ Demitido por', value: executor },
-            { name: '📝 Motivo', value: motivo }
-        ], user.displayAvatarURL());
-        await sendLog(message.guild, CANAL_DEMITIDO, embed);
-        return message.reply(`✅ ${user.tag} demitido por ${executor}.`);
-    }
-    if (cmd === 'advertir-staff' && podeAdvertirStaff(member)) {
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione');
-        const motivo = args.slice(1).join(' ') || 'Sem motivo';
-        if (!staffWarns.has(user.id)) staffWarns.set(user.id, []);
-        staffWarns.get(user.id).push({ motivo, staff: executor, date: new Date() });
-        const embed = createLogEmbed('⚠️ ADVERTÊNCIA STAFF', 0xFFA500, [
-            { name: '👤 Staff', value: `${user.tag} (${user.id})` },
-            { name: '🛡️ Advertido por', value: executor },
-            { name: '📝 Motivo', value: motivo },
-            { name: '📊 Total', value: `${staffWarns.get(user.id).length}` }
-        ], user.displayAvatarURL());
-        await sendLog(message.guild, CANAL_ADVERTENCIA, embed);
-        return message.reply(`✅ ${user.tag} advertido por ${executor}. Total: ${staffWarns.get(user.id).length}`);
-    }
-    if (cmd === 'tirarcooldown' && podeTirarCooldown(member)) {
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione');
-        if (cooldownAvaliacao.has(user.id)) {
-            cooldownAvaliacao.delete(user.id);
-            return message.reply(`✅ Cooldown de ${user.tag} removido.`);
-        } else return message.reply(`ℹ️ ${user.tag} não estava em cooldown.`);
-    }
-    if (cmd === 'adv') return message.reply('❌ Use `/adv` para atribuir ADV STAFF.');
     if (cmd === 'ajuda') {
         const embed = new EmbedBuilder().setColor(0x0099FF).setTitle('📚 Atlas RP - Comandos')
             .setDescription(`Prefixo **&** | Slash **/**`)
@@ -655,6 +575,7 @@ client.on('messageCreate', async message => {
 
 // ==================== INTERAÇÕES (SLASH, MODAIS, DROPDOWN) ====================
 client.on('interactionCreate', async interaction => {
+    // Modal de avaliação – cooldown só agora
     if (interaction.isModalSubmit() && interaction.customId === 'avaliarModal') {
         const now = Date.now();
         const last = cooldownAvaliacao.get(interaction.user.id);
@@ -684,22 +605,19 @@ client.on('interactionCreate', async interaction => {
                 { name: '📊 Média', value: `${media.toFixed(1)}/10` }
             ).setTimestamp();
         await canal.send({ embeds: [embed] });
+        // Só agora marca o cooldown
         cooldownAvaliacao.set(interaction.user.id, now);
         return interaction.reply({ content: '✅ Avaliação enviada!', ephemeral: true });
     }
+
+    // Slash commands
     if (!interaction.isChatInputCommand()) return;
     const cmd = interaction.commandName;
     const member = interaction.member;
     const executor = interaction.user.tag;
 
+    // Comando /avaliar – apenas abre o modal (sem cooldown)
     if (cmd === 'avaliar') {
-        const now = Date.now();
-        const last = cooldownAvaliacao.get(interaction.user.id);
-        if (last && (now - last) < COOLDOWN_TIME) {
-            const remaining = Math.ceil((COOLDOWN_TIME - (now - last)) / 60000);
-            return interaction.reply({ content: `⏳ Aguarde ${remaining} min.`, ephemeral: true });
-        }
-        cooldownAvaliacao.set(interaction.user.id, now);
         const modal = new ModalBuilder().setCustomId('avaliarModal').setTitle('⭐ Avaliar Staff');
         modal.addComponents(
             new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('staff').setLabel('Staff (@ ou nome)').setStyle(TextInputStyle.Short).setRequired(true)),
@@ -728,9 +646,10 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Comandos restritos (staff)
+    // Comandos restritos – verifica permissão pelo cargo (nível)
     if (getNivel(member) === 0) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
 
+    // Comandos de moderação via slash
     if (cmd === 'ban' && podeBan(member)) {
         const user = interaction.options.getUser('usuario');
         const motivo = interaction.options.getString('motivo');
@@ -810,20 +729,10 @@ client.on('interactionCreate', async interaction => {
         const embed = new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(desc);
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
-    if (cmd === 'adv' && getNivel(member) >= 6) {
-        const select = new StringSelectMenuBuilder()
-            .setCustomId('adv_select')
-            .setPlaceholder('Selecione o cargo ADV')
-            .addOptions(
-                new StringSelectMenuOptionBuilder().setLabel('ADV STAFF 1').setValue('adv1'),
-                new StringSelectMenuOptionBuilder().setLabel('ADV STAFF 2').setValue('adv2'),
-                new StringSelectMenuOptionBuilder().setLabel('ADV STAFF 3').setValue('adv3')
-            );
-        const row = new ActionRowBuilder().addComponents(select);
-        return interaction.reply({ content: 'Selecione o cargo:', components: [row], ephemeral: true });
-    }
+
+    // Comandos de gestão de staff (modal)
     if (cmd === 'promover') {
-        if (!podePromover(member, null)) return interaction.reply({ content: '❌ Você não pode promover.', ephemeral: true });
+        if (!podePromover(member, { id: 'dummy' })) return interaction.reply({ content: '❌ Você não pode promover.', ephemeral: true });
         const modal = new ModalBuilder().setCustomId('promoverModal').setTitle('Promover Staff');
         modal.addComponents(
             new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('usuario').setLabel('ID do usuário').setStyle(TextInputStyle.Short).setRequired(true)),
@@ -832,7 +741,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.showModal(modal);
     }
     if (cmd === 'rebaixar') {
-        if (!podeRebaixar(member, null)) return interaction.reply({ content: '❌ Você não pode rebaixar.', ephemeral: true });
+        if (!podeRebaixar(member, { id: 'dummy' })) return interaction.reply({ content: '❌ Você não pode rebaixar.', ephemeral: true });
         const modal = new ModalBuilder().setCustomId('rebaixarModal').setTitle('Rebaixar Staff');
         modal.addComponents(
             new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('usuario').setLabel('ID do usuário').setStyle(TextInputStyle.Short).setRequired(true)),
@@ -862,6 +771,18 @@ client.on('interactionCreate', async interaction => {
             new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('usuario').setLabel('ID do usuário').setStyle(TextInputStyle.Short).setRequired(true))
         );
         return interaction.showModal(modal);
+    }
+    if (cmd === 'adv' && getNivel(member) >= 6) {
+        const select = new StringSelectMenuBuilder()
+            .setCustomId('adv_select')
+            .setPlaceholder('Selecione o cargo ADV')
+            .addOptions(
+                new StringSelectMenuOptionBuilder().setLabel('ADV STAFF 1').setValue('adv1'),
+                new StringSelectMenuOptionBuilder().setLabel('ADV STAFF 2').setValue('adv2'),
+                new StringSelectMenuOptionBuilder().setLabel('ADV STAFF 3').setValue('adv3')
+            );
+        const row = new ActionRowBuilder().addComponents(select);
+        return interaction.reply({ content: 'Selecione o cargo:', components: [row], ephemeral: true });
     }
     if (cmd === 'ajuda') {
         const embed = new EmbedBuilder().setColor(0x0099FF).setTitle('📚 Slash Commands')
