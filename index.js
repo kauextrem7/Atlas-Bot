@@ -14,7 +14,7 @@ const CANAL_PUNICOES = '📋・punição-discord';
 const CANAL_CARGOS = '🏷️・logs-cargos';
 const CANAL_SERVIDOR = '⚙️・logs-serve';
 const CANAL_MENSAGENS = '✏️・logs-mensagem';
-const CANAL_AVALIACOES = '🌟・avaliação-staff';      // não é criado automaticamente
+const CANAL_AVALIACOES = '🌟・avaliação-staff';
 const CANAL_PROMOVIDO = '📗・relatorio-promovido';
 const CANAL_REBAIXADO = '📗・relatorio-rebaixado';
 const CANAL_DEMITIDO = '📗・relatorio-demitido';
@@ -222,7 +222,7 @@ client.once('ready', async () => {
     console.log('🟢 Bot pronto!');
 });
 
-// -------------------- LOGS COMPLETOS (todos os eventos) --------------------
+// ==================== LOGS COMPLETOS ====================
 client.on('guildMemberAdd', async member => {
     const e = createLogEmbed('📥 MEMBRO ENTROU', 0x00FF00, [
         { name: '👤 Membro', value: `${member.user.tag} (${member.id})`, inline: true },
@@ -415,7 +415,7 @@ client.on('messageCreate', async msg => {
     }
 });
 
-// -------------------- COMANDOS DE PREFIXO (>) --------------------
+// ==================== COMANDOS DE PREFIXO (>) ====================
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
     if (!message.content.startsWith('>')) return;
@@ -424,6 +424,7 @@ client.on('messageCreate', async message => {
     const member = message.member;
     const executor = message.author.tag;
 
+    // Comandos públicos
     if (cmd === 'avaliar') return message.reply('⭐ Para avaliar, use `/avaliar`.');
     if (cmd === 'media') {
         const user = message.mentions.users.first();
@@ -431,8 +432,8 @@ client.on('messageCreate', async message => {
         const avs = avaliacoes.get(user.id);
         if (!avs || !avs.length) return message.reply(`📋 ${user.tag} sem avaliações`);
         const media = avs.reduce((a,b)=>a+b.nota,0)/avs.length;
-        const emb = new EmbedBuilder().setColor(0x00FF00).setTitle(`⭐ Média de ${user.tag}`).setDescription(`${media.toFixed(1)}/10\n${barraNota(media)}\nTotal: ${avs.length}`);
-        return message.reply({ embeds: [emb] });
+        const embed = new EmbedBuilder().setColor(0x00FF00).setTitle(`⭐ Média de ${user.tag}`).setDescription(`${media.toFixed(1)}/10\n${barraNota(media)}\nTotal: ${avs.length}`);
+        return message.reply({ embeds: [embed] });
     }
     if (cmd === 'ranking') {
         const rank = Array.from(avaliacoes.entries()).map(([id,list])=>({id, media: list.reduce((a,b)=>a+b.nota,0)/list.length, total: list.length})).sort((a,b)=>b.media-a.media).slice(0,10);
@@ -442,13 +443,13 @@ client.on('messageCreate', async message => {
             const m = await message.guild.members.fetch(rank[i].id).catch(()=>null);
             desc += `**${i+1}.** ${m ? m.user.tag : rank[i].id} - ${rank[i].media.toFixed(1)}/10 (${rank[i].total})\n`;
         }
-        const emb = new EmbedBuilder().setColor(0xFFD700).setTitle('🏆 RANKING').setDescription(desc);
-        return message.reply({ embeds: [emb] });
+        const embed = new EmbedBuilder().setColor(0xFFD700).setTitle('🏆 RANKING').setDescription(desc);
+        return message.reply({ embeds: [embed] });
     }
 
     if (getNivel(member) === 0) return message.reply('❌ Sem permissão.');
 
-    // KICK (prefixo)
+    // Kick
     if (cmd === 'kick' && podeKick(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione um usuário');
@@ -465,7 +466,7 @@ client.on('messageCreate', async message => {
         return message.reply(`✅ ${user.tag} foi expulso.`);
     }
 
-    // BAN
+    // Ban
     if (cmd === 'ban' && podeBan(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione');
@@ -479,7 +480,7 @@ client.on('messageCreate', async message => {
         await sendLog(message.guild, CANAL_PUNICOES, embed);
         return message.reply(`✅ ${user.tag} banido.`);
     }
-    // UNBAN
+    // Unban
     if (cmd === 'unban' && podeUnban(member)) {
         const id = args[0];
         if (!id) return message.reply('❌ ID');
@@ -491,7 +492,7 @@ client.on('messageCreate', async message => {
             return message.reply(`✅ ${id} desbanido.`);
         } catch { return message.reply('❌ ID inválido.'); }
     }
-    // BANLIST
+    // Banlist
     if (cmd === 'banlist' && podeBan(member)) {
         const bans = await message.guild.bans.fetch();
         if (!bans.size) return message.reply('📋 Nenhum banido.');
@@ -499,7 +500,7 @@ client.on('messageCreate', async message => {
         const embed = new EmbedBuilder().setColor(0xFF0000).setTitle('📋 BANIDOS').setDescription(lista.slice(0,4000));
         return message.reply({ embeds: [embed] });
     }
-    // MUTE
+    // Mute
     if (cmd === 'mute' && podeMute(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione');
@@ -518,7 +519,7 @@ client.on('messageCreate', async message => {
         await sendLog(message.guild, CANAL_PUNICOES, embed);
         return message.reply(`✅ ${user.tag} mutado ${tempo}min.`);
     }
-    // UNMUTE
+    // Unmute
     if (cmd === 'unmute' && podeMute(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione');
@@ -533,7 +534,7 @@ client.on('messageCreate', async message => {
         await sendLog(message.guild, CANAL_PUNICOES, embed);
         return message.reply(`✅ ${user.tag} desmutado.`);
     }
-    // WARN
+    // Warn
     if (cmd === 'warn' && podeWarn(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione');
@@ -549,7 +550,7 @@ client.on('messageCreate', async message => {
         await sendLog(message.guild, CANAL_PUNICOES, embed);
         return message.reply(`✅ Warn em ${user.tag}. Total: ${warns.get(user.id).length}`);
     }
-    // WARNS
+    // Warns
     if (cmd === 'warns' && podeWarn(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione');
@@ -559,6 +560,55 @@ client.on('messageCreate', async message => {
         const embed = new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(desc);
         return message.reply({ embeds: [embed] });
     }
+
+    // LOCK - Trancar canal (apenas staff nível 5+; ao trancar, apenas staff nível 5+ pode falar)
+    if (cmd === 'lock') {
+        if (getNivel(member) < 5) return message.reply('❌ Apenas Administrador(a)+ pode usar este comando.');
+        const motivo = args.join(' ') || 'Motivo não informado';
+        const channel = message.channel;
+        const alreadyLocked = channel.permissionOverwrites.cache.get(message.guild.roles.everyone.id)?.deny.has(PermissionsBitField.Flags.SendMessages);
+        if (alreadyLocked) return message.reply('🔒 Este canal já está trancado.');
+        try {
+            // Negar envio de mensagens para @everyone
+            await channel.permissionOverwrites.edit(message.guild.roles.everyone, { SendMessages: false });
+            // Permitir apenas para cargos com nível >=5 (staff)
+            for (const [cargoNome, nivel] of Object.entries(CARGOS_LEVEL)) {
+                if (nivel >= 5) {
+                    const role = message.guild.roles.cache.find(r => r.name === cargoNome);
+                    if (role) await channel.permissionOverwrites.edit(role, { SendMessages: true });
+                }
+            }
+            // Também permitir para quem tem permissão Administrator (nível 9 já incluso)
+            const embed = createLogEmbed('🔒 CANAL TRANCADO', 0xFFA500, [
+                { name: '📌 Canal', value: `${channel}`, inline: true },
+                { name: '🛡️ Staff', value: executor, inline: true },
+                { name: '📝 Motivo', value: motivo, inline: true }
+            ], message.author.displayAvatarURL());
+            await sendLog(message.guild, CANAL_PUNICOES, embed);
+            await channel.send(`🔒 **Canal trancado por ${executor}**\nMotivo: ${motivo}\nApenas administradores e staff com cargo nível 5+ podem enviar mensagens.`);
+        } catch (err) { message.reply('❌ Erro ao trancar o canal. Verifique minhas permissões (Gerenciar Canais).'); }
+        return;
+    }
+    // UNLOCK - Destrancar canal (remove todas as restrições)
+    if (cmd === 'unlock') {
+        if (getNivel(member) < 5) return message.reply('❌ Apenas Administrador(a)+ pode usar este comando.');
+        const channel = message.channel;
+        try {
+            await channel.permissionOverwrites.edit(message.guild.roles.everyone, { SendMessages: null });
+            for (const [cargoNome] of Object.entries(CARGOS_LEVEL)) {
+                const role = message.guild.roles.cache.find(r => r.name === cargoNome);
+                if (role) await channel.permissionOverwrites.edit(role, { SendMessages: null });
+            }
+            const embed = createLogEmbed('🔓 CANAL DESTRANCADO', 0x00FF00, [
+                { name: '📌 Canal', value: `${channel}`, inline: true },
+                { name: '🛡️ Staff', value: executor, inline: true }
+            ], message.author.displayAvatarURL());
+            await sendLog(message.guild, CANAL_PUNICOES, embed);
+            await channel.send(`🔓 **Canal destrancado por ${executor}**\nTodos podem enviar mensagens novamente.`);
+        } catch (err) { message.reply('❌ Erro ao destrancar o canal.'); }
+        return;
+    }
+
     // Redirecionar comandos avançados para slash
     if (cmd === 'promover' || cmd === 'rebaixar' || cmd === 'demitir' || cmd === 'advertir-staff' || cmd === 'tirarcooldown' || cmd === 'adv') {
         return message.reply(`❌ Use o comando slash \`/${cmd}\`.`);
@@ -567,19 +617,19 @@ client.on('messageCreate', async message => {
         const embed = new EmbedBuilder().setColor(0x0099FF).setTitle('📚 Atlas RP - Comandos')
             .setDescription(`Prefixo **>** | Slash **/**`)
             .addFields(
-                { name: '👑 Líder/Desenvolvedor', value: '`ban`, `unban`, `demitir`', inline: true },
+                { name: '👑 Líder/Desenvolvedor', value: '`ban`, `unban`, `demitir`, `lock`, `unlock`', inline: true },
                 { name: '⭐ Coordenador', value: '`mute`, `unmute`, `warn`, `promover`, `rebaixar`', inline: true },
                 { name: '🛡️ Supervisor', value: '`mute`, `unmute`, `warn`, `advertir-staff`', inline: true },
-                { name: '🔧 Admin', value: '`mute`, `unmute`, `warn`, `promover`, `rebaixar`, `adv`, `kick`', inline: true },
+                { name: '🔧 Admin', value: '`mute`, `unmute`, `warn`, `promover`, `rebaixar`, `adv`, `kick`, `lock`, `unlock`', inline: true },
                 { name: '⭐ Todos', value: '`avaliar`, `media`, `ranking`', inline: true }
             );
         return message.reply({ embeds: [embed] });
     }
 });
 
-// -------------------- INTERAÇÕES (SLASH, MODAIS, DROPDOWN) --------------------
+// ==================== INTERAÇÕES (SLASH, MODAIS, DROPDOWN) ====================
 client.on('interactionCreate', async interaction => {
-    // Modal de avaliação
+    // Modal de avaliação – corrigido para marcar staff e avaliador
     if (interaction.isModalSubmit() && interaction.customId === 'avaliarModal') {
         const now = Date.now();
         const last = cooldownAvaliacao.get(interaction.user.id);
@@ -587,27 +637,44 @@ client.on('interactionCreate', async interaction => {
             const remaining = Math.ceil((COOLDOWN_TIME - (now - last)) / 60000);
             return interaction.reply({ content: `⏳ Aguarde ${remaining} min.`, ephemeral: true });
         }
-        const staffNome = interaction.fields.getTextInputValue('staff');
+        const staffInput = interaction.fields.getTextInputValue('staff');
         const nota = parseInt(interaction.fields.getTextInputValue('nota'));
         const motivo = interaction.fields.getTextInputValue('motivo');
         if (isNaN(nota) || nota < 1 || nota > 10) return interaction.reply({ content: '❌ Nota 1-10', ephemeral: true });
         const canal = interaction.guild.channels.cache.find(c => c.name === CANAL_AVALIACOES);
         if (!canal) return interaction.reply({ content: `❌ Canal ${CANAL_AVALIACOES} não encontrado.`, ephemeral: true });
-        const userId = staffNome.match(/\d+/g)?.[0];
+        
+        let userId = staffInput.match(/\d+/g)?.[0];
         let membro = null;
-        if (userId) try { membro = await interaction.guild.members.fetch(userId); } catch(e) {}
-        const key = userId || staffNome;
+        if (userId) {
+            try { membro = await interaction.guild.members.fetch(userId); } catch(e) {}
+        } else {
+            const possivel = interaction.guild.members.cache.find(m => m.user.tag === staffInput || m.user.username === staffInput);
+            if (possivel) {
+                userId = possivel.id;
+                membro = possivel;
+            }
+        }
+        if (!userId || !membro) {
+            return interaction.reply({ content: '❌ Staff não encontrado. Use o ID ou marque corretamente (@).', ephemeral: true });
+        }
+        const key = userId;
         if (!avaliacoes.has(key)) avaliacoes.set(key, []);
         avaliacoes.get(key).push({ nota, motivo, avaliador: interaction.user.tag, data: new Date() });
         const media = avaliacoes.get(key).reduce((a,b)=>a+b.nota,0)/avaliacoes.get(key).length;
-        const embed = new EmbedBuilder().setColor(nota>=7?0x00FF00:nota>=4?0xFFA500:0xFF0000).setTitle('⭐ NOVA AVALIAÇÃO')
+        
+        const embed = new EmbedBuilder()
+            .setColor(nota>=7?0x00FF00:nota>=4?0xFFA500:0xFF0000)
+            .setTitle('⭐ NOVA AVALIAÇÃO')
+            .setDescription(`${interaction.user} avaliou ${membro}`)
             .addFields(
-                { name: '👨‍✈️ Staff', value: membro ? `${membro}` : staffNome },
-                { name: '👤 Avaliador', value: interaction.user.tag },
-                { name: '⭐ Nota', value: `${nota}/10\n${barraNota(nota)}` },
-                { name: '📝 Feedback', value: motivo },
-                { name: '📊 Média', value: `${media.toFixed(1)}/10` }
-            ).setTimestamp();
+                { name: '👨‍✈️ Staff', value: `${membro}`, inline: true },
+                { name: '👤 Avaliador', value: `${interaction.user}`, inline: true },
+                { name: '⭐ Nota', value: `${nota}/10\n${barraNota(nota)}`, inline: false },
+                { name: '📝 Feedback', value: motivo, inline: false },
+                { name: '📊 Média', value: `${media.toFixed(1)}/10`, inline: true }
+            )
+            .setTimestamp();
         await canal.send({ embeds: [embed] });
         cooldownAvaliacao.set(interaction.user.id, now);
         return interaction.reply({ content: '✅ Avaliação enviada!', ephemeral: true });
@@ -652,7 +719,7 @@ client.on('interactionCreate', async interaction => {
     const nivel = getNivel(member);
     if (nivel === 0) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
 
-    // KICK
+    // Kick
     if (cmd === 'kick' && podeKick(member)) {
         await interaction.deferReply({ ephemeral: true });
         const user = interaction.options.getUser('usuario');
@@ -668,7 +735,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_PUNICOES, embed);
         return interaction.editReply({ content: `✅ ${user.tag} foi expulso.` });
     }
-    // BAN
+    // Ban
     if (cmd === 'ban' && podeBan(member)) {
         await interaction.deferReply({ ephemeral: true });
         const user = interaction.options.getUser('usuario');
@@ -682,7 +749,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_PUNICOES, embed);
         return interaction.editReply({ content: `✅ ${user.tag} banido.` });
     }
-    // UNBAN
+    // Unban
     if (cmd === 'unban' && podeUnban(member)) {
         await interaction.deferReply({ ephemeral: true });
         const id = interaction.options.getString('id');
@@ -694,7 +761,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply({ content: `✅ ${id} desbanido.` });
         } catch { return interaction.editReply({ content: '❌ ID inválido.' }); }
     }
-    // BANLIST
+    // Banlist
     if (cmd === 'banlist' && podeBan(member)) {
         await interaction.deferReply({ ephemeral: true });
         const bans = await interaction.guild.bans.fetch();
@@ -703,7 +770,7 @@ client.on('interactionCreate', async interaction => {
         const embed = new EmbedBuilder().setColor(0xFF0000).setTitle('📋 BANIDOS').setDescription(lista.slice(0,4000));
         return interaction.editReply({ embeds: [embed] });
     }
-    // MUTE
+    // Mute
     if (cmd === 'mute' && podeMute(member)) {
         await interaction.deferReply({ ephemeral: true });
         const user = interaction.options.getUser('usuario');
@@ -721,7 +788,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_PUNICOES, embed);
         return interaction.editReply({ content: `✅ ${user.tag} mutado ${tempo}min.` });
     }
-    // UNMUTE
+    // Unmute
     if (cmd === 'unmute' && podeMute(member)) {
         await interaction.deferReply({ ephemeral: true });
         const user = interaction.options.getUser('usuario');
@@ -736,7 +803,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_PUNICOES, embed);
         return interaction.editReply({ content: `✅ ${user.tag} desmutado.` });
     }
-    // WARN
+    // Warn
     if (cmd === 'warn' && podeWarn(member)) {
         await interaction.deferReply({ ephemeral: true });
         const user = interaction.options.getUser('usuario');
@@ -752,7 +819,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_PUNICOES, embed);
         return interaction.editReply({ content: `✅ Warn aplicado. Total: ${warns.get(user.id).length}` });
     }
-    // WARNS
+    // Warns
     if (cmd === 'warns' && podeWarn(member)) {
         await interaction.deferReply({ ephemeral: true });
         const user = interaction.options.getUser('usuario');
@@ -762,7 +829,7 @@ client.on('interactionCreate', async interaction => {
         const embed = new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(desc);
         return interaction.editReply({ embeds: [embed] });
     }
-    // PROMOVER
+    // Promover
     if (cmd === 'promover') {
         await interaction.deferReply({ ephemeral: true });
         const usuario = interaction.options.getUser('usuario');
@@ -789,7 +856,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_PROMOVIDO, embed);
         return interaction.editReply({ content: `✅ ${target.user.tag} promovido de ${cargoAtual.nome} para ${novoCargoNome} por ${executor}.` });
     }
-    // REBAIXAR
+    // Rebaixar
     if (cmd === 'rebaixar') {
         await interaction.deferReply({ ephemeral: true });
         const usuario = interaction.options.getUser('usuario');
@@ -815,7 +882,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_REBAIXADO, embed);
         return interaction.editReply({ content: `✅ ${target.user.tag} rebaixado de ${cargoAtual.nome} para ${novoCargoNome} por ${executor}.` });
     }
-    // DEMITIR
+    // Demitir
     if (cmd === 'demitir' && podeDemitir(member)) {
         await interaction.deferReply({ ephemeral: true });
         const usuario = interaction.options.getUser('usuario');
@@ -834,7 +901,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_DEMITIDO, embed);
         return interaction.editReply({ content: `✅ ${target.user.tag} foi demitido e perdeu todos os cargos de staff.` });
     }
-    // ADVERTIR STAFF
+    // Advertir staff
     if (cmd === 'advertir-staff' && podeAdvertirStaff(member)) {
         await interaction.deferReply({ ephemeral: true });
         const usuario = interaction.options.getUser('usuario');
@@ -851,7 +918,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_ADVERTENCIA, embed);
         return interaction.editReply({ content: `✅ ${usuario.tag} advertido por ${executor}. Total: ${staffWarns.get(targetId).length}` });
     }
-    // TIRAR COOLDOWN
+    // Tirar cooldown
     if (cmd === 'tirarcooldown' && podeTirarCooldown(member)) {
         await interaction.deferReply({ ephemeral: true });
         const usuario = interaction.options.getUser('usuario');
@@ -862,7 +929,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply({ content: `ℹ️ ${usuario.tag} não estava em cooldown.` });
         }
     }
-    // ADV (dropdown)
+    // ADV
     if (cmd === 'adv') {
         if (getNivel(member) < 5) return interaction.reply({ content: '❌ Apenas Administrador+ pode atribuir ADV.', ephemeral: true });
         const select = new StringSelectMenuBuilder()
