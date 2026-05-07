@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, Events, REST, Routes, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ChannelType } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, Events, REST, Routes, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ChannelType, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
 require('dotenv').config();
 const express = require('express');
 
@@ -68,9 +68,7 @@ const podeBan = m => getNivel(m) >= 4;
 const podeUnban = m => getNivel(m) >= 4;
 const podeMute = m => getNivel(m) >= 1;
 const podeWarn = m => getNivel(m) >= 1;
-const podeAdv1 = m => getNivel(m) >= 2;
-const podeAdv2 = m => getNivel(m) >= 3;
-const podeAdv3 = m => getNivel(m) >= 4;
+const podeAdv = m => getNivel(m) >= 2;   // Supervisor+ pode dar qualquer ADV
 const podePromover = m => getNivel(m) >= 3;
 const podeRebaixar = m => getNivel(m) >= 3;
 const podeDemitir = m => getNivel(m) >= 4;
@@ -130,15 +128,15 @@ async function criarCanaisLog(guild) {
     }
 }
 
-// ==================== SLASH COMMANDS (COM PERMISSÕES OCULTAS PARA MEMBROS) ====================
+// ==================== SLASH COMMANDS ====================
 const slashCommands = [
-    // Comandos públicos (todos veem)
+    // Públicos (todos veem)
     { name: 'avaliar', description: '⭐ Avaliar staff (1-10) - Todos' },
     { name: 'media', description: 'Média do staff', options: [{ name: 'staff', type: 6, required: true }] },
     { name: 'ranking', description: 'Ranking dos staffs' },
     { name: 'ajuda', description: 'Comandos' },
 
-    // Comandos restritos (invisíveis para membros comuns)
+    // Restritos (invisíveis para membros comuns)
     { name: 'ban', description: 'Banir membro', default_member_permissions: "0", options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
     { name: 'unban', description: 'Desbanir', default_member_permissions: "0", options: [{ name: 'id', type: 3, required: true }, { name: 'motivo', type: 3, required: true }] },
     { name: 'banlist', description: 'Lista de banidos', default_member_permissions: "0" },
@@ -146,13 +144,11 @@ const slashCommands = [
     { name: 'unmute', description: 'Desmutar', default_member_permissions: "0", options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
     { name: 'warn', description: 'Advertir', default_member_permissions: "0", options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
     { name: 'warns', description: 'Ver warns', default_member_permissions: "0", options: [{ name: 'usuario', type: 6, required: true }] },
-    { name: 'adv1', description: 'ADV STAFF 1', default_member_permissions: "0", options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'adv2', description: 'ADV STAFF 2', default_member_permissions: "0", options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'adv3', description: 'ADV STAFF 3', default_member_permissions: "0", options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'adv', description: 'Atribuir cargo ADV STAFF (1, 2 ou 3)', default_member_permissions: "0" },
     { name: 'promover', description: 'Promover membro da staff', default_member_permissions: "0" },
     { name: 'rebaixar', description: 'Rebaixar membro da staff', default_member_permissions: "0" },
     { name: 'demitir', description: 'Demitir membro da staff', default_member_permissions: "0" },
-    { name: 'advertir-staff', description: 'Advertir membro da staff', default_member_permissions: "0" },
+    { name: 'advertir-staff', description: 'Advertir um membro da staff', default_member_permissions: "0" },
     { name: 'tirarcooldown', description: 'Remover cooldown de avaliação', default_member_permissions: "0" }
 ];
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
@@ -185,19 +181,18 @@ const staffWarns = new Map();
 let avaliacaoMensagemAtual = null;
 let intervaloAvaliacao = null;
 
+// Mensagem rotativa no canal de avaliações (a cada 2 minutos, apaga a anterior)
 async function enviarMensagemAvaliacao(guild) {
     const channel = guild.channels.cache.find(c => c.name === CANAL_AVALIACOES && c.isTextBased());
     if (!channel) return;
     try {
+        // Apaga mensagem anterior se existir
         if (avaliacaoMensagemAtual) {
             try {
                 const msgAntiga = await channel.messages.fetch(avaliacaoMensagemAtual.id).catch(() => null);
                 if (msgAntiga) await msgAntiga.delete();
             } catch (e) {}
         }
-        const agora = new Date();
-        const proximo = new Date(agora.getTime() + 60000);
-        const horaProximo = proximo.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         const embed = new EmbedBuilder()
             .setColor(0x00FFCC)
             .setTitle('⭐ Como avaliar um staff?')
@@ -208,8 +203,7 @@ async function enviarMensagemAvaliacao(guild) {
                 { name: '⭐ Nota', value: 'De **1** a **10** (apenas números inteiros).', inline: true },
                 { name: '📝 Feedback', value: 'Comentário construtivo sobre o staff.', inline: true },
                 { name: '🕒 Cooldown', value: 'Você pode avaliar a cada **15 minutos**.', inline: false }
-            )
-            .setFooter({ text: `🔄 Mensagem atualizada automaticamente a cada 1 minuto. Próxima: ${horaProximo}` });
+            );
         const novaMsg = await channel.send({ embeds: [embed] });
         avaliacaoMensagemAtual = novaMsg;
     } catch (err) {
@@ -224,14 +218,16 @@ client.once('ready', async () => {
     if (guild) {
         await criarCanaisLog(guild);
         if (intervaloAvaliacao) clearInterval(intervaloAvaliacao);
+        // Primeira mensagem após 2 segundos, depois a cada 2 minutos (120000 ms)
         setTimeout(() => enviarMensagemAvaliacao(guild), 2000);
-        intervaloAvaliacao = setInterval(() => enviarMensagemAvaliacao(guild), 60000);
+        intervaloAvaliacao = setInterval(() => enviarMensagemAvaliacao(guild), 120000);
     }
     await regComandos();
     console.log('🟢 Bot pronto!');
 });
 
-// -------------------- LOGS COMPLETOS --------------------
+// ==================== LOGS COMPLETOS ====================
+// (mesmo conteúdo da versão anterior – mantido por completo)
 client.on('guildMemberAdd', async member => {
     const embed = createLogEmbed('📥 MEMBRO ENTROU', 0x00FF00, [
         { name: '👤 Membro', value: `${member.user.tag} (${member.id})`, inline: true },
@@ -424,9 +420,9 @@ client.on('messageCreate', async message => {
     const member = message.member;
     const executor = message.author.tag;
 
-    // --- Público: avaliar (prefixo não suporta modal) ---
+    // Comandos públicos (todos podem usar)
     if (cmd === 'avaliar') {
-        return message.reply('⭐ Para avaliar um staff, use o comando `/avaliar` diretamente. Ele abrirá uma janela para você preencher a nota, o staff e o feedback.\n(Comando de prefixo `&avaliar` não suporta o painel interativo.)');
+        return message.reply('⭐ Para avaliar um staff, use o comando `/avaliar`. (Comando de prefixo `&avaliar` não suporta o painel interativo.)');
     }
     if (cmd === 'media') {
         const user = message.mentions.users.first();
@@ -452,106 +448,7 @@ client.on('messageCreate', async message => {
     // Verifica permissão mínima (nível 1+)
     if (getNivel(member) === 0) return message.reply('❌ Você não tem permissão.');
 
-    // --- Comandos de staff com modal (via prefixo não há modal, usamos argumentos) ---
-    if (cmd === 'promover') {
-        if (!podePromover(member)) return message.reply('❌ Apenas Coordenador+ pode promover.');
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione um usuário.');
-        const motivo = args.slice(1).join(' ') || 'Sem motivo';
-        const target = await message.guild.members.fetch(user.id);
-        const cargoAtual = await getCargoAtual(target);
-        if (cargoAtual.nivel === 0) return message.reply(`❌ ${user.tag} não possui cargo de staff.`);
-        if (cargoAtual.nivel >= 4) return message.reply(`❌ ${user.tag} já está no nível máximo.`);
-        const novoNivel = cargoAtual.nivel + 1;
-        const novoCargoNome = getCargoNome(novoNivel);
-        const cargoRole = message.guild.roles.cache.find(r => r.name === novoCargoNome);
-        const cargoAntigoRole = message.guild.roles.cache.find(r => r.name === cargoAtual.nome);
-        if (!cargoRole) return message.reply(`❌ Cargo ${novoCargoNome} não encontrado.`);
-        await target.roles.remove(cargoAntigoRole);
-        await target.roles.add(cargoRole);
-        const embed = createLogEmbed('⭐ PROMOÇÃO DE STAFF', 0x00FF00, [
-            { name: '👤 Staff', value: `${user.tag} (${user.id})`, inline: true },
-            { name: '📈 De', value: cargoAtual.nome, inline: true },
-            { name: '📈 Para', value: novoCargoNome, inline: true },
-            { name: '🛡️ Promovido por', value: executor, inline: true },
-            { name: '📝 Motivo', value: motivo, inline: true }
-        ], user.displayAvatarURL());
-        await sendLog(message.guild, CANAL_PROMOVIDO, embed);
-        return message.reply(`✅ ${user.tag} promovido de ${cargoAtual.nome} para ${novoCargoNome}.`);
-    }
-    if (cmd === 'rebaixar') {
-        if (!podeRebaixar(member)) return message.reply('❌ Apenas Coordenador+ pode rebaixar.');
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione um usuário.');
-        const motivo = args.slice(1).join(' ') || 'Sem motivo';
-        const target = await message.guild.members.fetch(user.id);
-        const cargoAtual = await getCargoAtual(target);
-        if (cargoAtual.nivel <= 1) return message.reply(`❌ ${user.tag} não pode ser rebaixado.`);
-        const novoNivel = cargoAtual.nivel - 1;
-        const novoCargoNome = getCargoNome(novoNivel);
-        const cargoRole = message.guild.roles.cache.find(r => r.name === novoCargoNome);
-        const cargoAntigoRole = message.guild.roles.cache.find(r => r.name === cargoAtual.nome);
-        if (!cargoRole) return message.reply(`❌ Cargo ${novoCargoNome} não encontrado.`);
-        await target.roles.remove(cargoAntigoRole);
-        await target.roles.add(cargoRole);
-        const embed = createLogEmbed('👇 REBAIXAMENTO DE STAFF', 0xFFA500, [
-            { name: '👤 Staff', value: `${user.tag} (${user.id})`, inline: true },
-            { name: '📉 De', value: cargoAtual.nome, inline: true },
-            { name: '📉 Para', value: novoCargoNome, inline: true },
-            { name: '🛡️ Rebaixado por', value: executor, inline: true },
-            { name: '📝 Motivo', value: motivo, inline: true }
-        ], user.displayAvatarURL());
-        await sendLog(message.guild, CANAL_REBAIXADO, embed);
-        return message.reply(`✅ ${user.tag} rebaixado de ${cargoAtual.nome} para ${novoCargoNome}.`);
-    }
-    if (cmd === 'demitir') {
-        if (!podeDemitir(member)) return message.reply('❌ Apenas Líder/Desenvolvedor pode demitir.');
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione um usuário.');
-        const motivo = args.slice(1).join(' ') || 'Sem motivo';
-        const target = await message.guild.members.fetch(user.id);
-        const cargoAtual = await getCargoAtual(target);
-        if (cargoAtual.nivel === 0) return message.reply(`❌ ${user.tag} não possui cargo.`);
-        const cargoRole = message.guild.roles.cache.find(r => r.name === cargoAtual.nome);
-        await target.roles.remove(cargoRole);
-        const embed = createLogEmbed('❌ DEMISSÃO DE STAFF', 0xFF0000, [
-            { name: '👤 Staff', value: `${user.tag} (${user.id})`, inline: true },
-            { name: '📛 Cargo anterior', value: cargoAtual.nome, inline: true },
-            { name: '🛡️ Demitido por', value: executor, inline: true },
-            { name: '📝 Motivo', value: motivo, inline: true }
-        ], user.displayAvatarURL());
-        await sendLog(message.guild, CANAL_DEMITIDO, embed);
-        return message.reply(`✅ ${user.tag} demitido.`);
-    }
-    if (cmd === 'advertir-staff') {
-        if (!podeAdvertirStaff(member)) return message.reply('❌ Apenas Supervisor+ pode advertir staff.');
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione um usuário.');
-        const motivo = args.slice(1).join(' ') || 'Sem motivo';
-        if (!staffWarns.has(user.id)) staffWarns.set(user.id, []);
-        staffWarns.get(user.id).push({ motivo, staff: executor, data: new Date() });
-        const embed = createLogEmbed('⚠️ ADVERTÊNCIA DE STAFF', 0xFFA500, [
-            { name: '👤 Staff', value: `${user.tag} (${user.id})`, inline: true },
-            { name: '🛡️ Advertido por', value: executor, inline: true },
-            { name: '📝 Motivo', value: motivo, inline: true },
-            { name: '📌 Total', value: `${staffWarns.get(user.id).length}`, inline: true }
-        ], user.displayAvatarURL());
-        await sendLog(message.guild, CANAL_ADVERTENCIA, embed);
-        return message.reply(`✅ ${user.tag} recebeu advertência. Total: ${staffWarns.get(user.id).length}`);
-    }
-    if (cmd === 'tirarcooldown') {
-        if (!podeTirarCooldown(member)) return message.reply('❌ Sem permissão.');
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione um usuário.');
-        if (cooldownAvaliacao.has(user.id)) {
-            cooldownAvaliacao.delete(user.id);
-            return message.reply(`✅ Cooldown removido para ${user.tag}.`);
-        } else {
-            return message.reply(`ℹ️ ${user.tag} não estava em cooldown.`);
-        }
-    }
-
-    // --- Comandos diretos (ban, unban, mute, unmute, warn, warns, adv1/2/3) ---
+    // Comandos de moderação diretos
     if (cmd === 'ban' && podeBan(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione um usuário.');
@@ -638,171 +535,152 @@ client.on('messageCreate', async message => {
         const embed = new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(desc);
         return message.reply({ embeds: [embed] });
     }
-    if (cmd === 'adv1' && podeAdv1(member)) {
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione um usuário.');
-        const motivo = args.slice(1).join(' ') || 'Sem motivo';
-        const role = message.guild.roles.cache.find(r => r.name === 'ADV STAFF 1');
-        if (!role) return message.reply('❌ Cargo ADV STAFF 1 não existe.');
-        const target = await message.guild.members.fetch(user.id);
-        await target.roles.add(role);
-        const embed = createLogEmbed('🏷️ ADV STAFF 1 ATRIBUÍDO', 0x00FF00, [
-            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: true },
-            { name: '🛡️ Staff', value: executor, inline: true },
-            { name: '📝 Motivo', value: motivo, inline: true }
-        ], user.displayAvatarURL());
-        await sendLog(message.guild, CANAL_ADVERTENCIA, embed);
-        return message.reply(`✅ ADV STAFF 1 concedido a ${user.tag} por ${executor}.`);
+    if (cmd === 'adv' && podeAdv(member)) {
+        return message.reply('❌ Para atribuir cargo ADV, use o comando `/adv`. Ele abre um painel com opções.');
     }
-    if (cmd === 'adv2' && podeAdv2(member)) {
+    if (cmd === 'promover' && podePromover(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione um usuário.');
         const motivo = args.slice(1).join(' ') || 'Sem motivo';
-        const role = message.guild.roles.cache.find(r => r.name === 'ADV STAFF 2');
-        if (!role) return message.reply('❌ Cargo ADV STAFF 2 não existe.');
         const target = await message.guild.members.fetch(user.id);
-        await target.roles.add(role);
-        const embed = createLogEmbed('🏷️ ADV STAFF 2 ATRIBUÍDO', 0x00FF00, [
-            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: true },
-            { name: '🛡️ Staff', value: executor, inline: true },
+        const cargoAtual = await getCargoAtual(target);
+        if (cargoAtual.nivel === 0) return message.reply(`❌ ${user.tag} não possui cargo de staff.`);
+        if (cargoAtual.nivel >= 4) return message.reply(`❌ ${user.tag} já está no nível máximo.`);
+        const novoNivel = cargoAtual.nivel + 1;
+        const novoCargoNome = getCargoNome(novoNivel);
+        const cargoRole = message.guild.roles.cache.find(r => r.name === novoCargoNome);
+        const cargoAntigoRole = message.guild.roles.cache.find(r => r.name === cargoAtual.nome);
+        if (!cargoRole) return message.reply(`❌ Cargo ${novoCargoNome} não encontrado.`);
+        await target.roles.remove(cargoAntigoRole);
+        await target.roles.add(cargoRole);
+        const embed = createLogEmbed('⭐ PROMOÇÃO DE STAFF', 0x00FF00, [
+            { name: '👤 Staff', value: `${user.tag} (${user.id})`, inline: true },
+            { name: '📈 De', value: cargoAtual.nome, inline: true },
+            { name: '📈 Para', value: novoCargoNome, inline: true },
+            { name: '🛡️ Promovido por', value: executor, inline: true },
             { name: '📝 Motivo', value: motivo, inline: true }
         ], user.displayAvatarURL());
-        await sendLog(message.guild, CANAL_ADVERTENCIA, embed);
-        return message.reply(`✅ ADV STAFF 2 concedido a ${user.tag} por ${executor}.`);
+        await sendLog(message.guild, CANAL_PROMOVIDO, embed);
+        return message.reply(`✅ ${user.tag} promovido de ${cargoAtual.nome} para ${novoCargoNome}.`);
     }
-    if (cmd === 'adv3' && podeAdv3(member)) {
+    if (cmd === 'rebaixar' && podeRebaixar(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione um usuário.');
         const motivo = args.slice(1).join(' ') || 'Sem motivo';
-        const role = message.guild.roles.cache.find(r => r.name === 'ADV STAFF 3');
-        if (!role) return message.reply('❌ Cargo ADV STAFF 3 não existe.');
         const target = await message.guild.members.fetch(user.id);
-        await target.roles.add(role);
-        const embed = createLogEmbed('🏷️ ADV STAFF 3 ATRIBUÍDO', 0x00FF00, [
-            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: true },
-            { name: '🛡️ Staff', value: executor, inline: true },
+        const cargoAtual = await getCargoAtual(target);
+        if (cargoAtual.nivel <= 1) return message.reply(`❌ ${user.tag} não pode ser rebaixado.`);
+        const novoNivel = cargoAtual.nivel - 1;
+        const novoCargoNome = getCargoNome(novoNivel);
+        const cargoRole = message.guild.roles.cache.find(r => r.name === novoCargoNome);
+        const cargoAntigoRole = message.guild.roles.cache.find(r => r.name === cargoAtual.nome);
+        if (!cargoRole) return message.reply(`❌ Cargo ${novoCargoNome} não encontrado.`);
+        await target.roles.remove(cargoAntigoRole);
+        await target.roles.add(cargoRole);
+        const embed = createLogEmbed('👇 REBAIXAMENTO DE STAFF', 0xFFA500, [
+            { name: '👤 Staff', value: `${user.tag} (${user.id})`, inline: true },
+            { name: '📉 De', value: cargoAtual.nome, inline: true },
+            { name: '📉 Para', value: novoCargoNome, inline: true },
+            { name: '🛡️ Rebaixado por', value: executor, inline: true },
             { name: '📝 Motivo', value: motivo, inline: true }
         ], user.displayAvatarURL());
+        await sendLog(message.guild, CANAL_REBAIXADO, embed);
+        return message.reply(`✅ ${user.tag} rebaixado de ${cargoAtual.nome} para ${novoCargoNome}.`);
+    }
+    if (cmd === 'demitir' && podeDemitir(member)) {
+        const user = message.mentions.users.first();
+        if (!user) return message.reply('❌ Mencione um usuário.');
+        const motivo = args.slice(1).join(' ') || 'Sem motivo';
+        const target = await message.guild.members.fetch(user.id);
+        const cargoAtual = await getCargoAtual(target);
+        if (cargoAtual.nivel === 0) return message.reply(`❌ ${user.tag} não possui cargo.`);
+        const cargoRole = message.guild.roles.cache.find(r => r.name === cargoAtual.nome);
+        await target.roles.remove(cargoRole);
+        const embed = createLogEmbed('❌ DEMISSÃO DE STAFF', 0xFF0000, [
+            { name: '👤 Staff', value: `${user.tag} (${user.id})`, inline: true },
+            { name: '📛 Cargo anterior', value: cargoAtual.nome, inline: true },
+            { name: '🛡️ Demitido por', value: executor, inline: true },
+            { name: '📝 Motivo', value: motivo, inline: true }
+        ], user.displayAvatarURL());
+        await sendLog(message.guild, CANAL_DEMITIDO, embed);
+        return message.reply(`✅ ${user.tag} demitido.`);
+    }
+    if (cmd === 'advertir-staff' && podeAdvertirStaff(member)) {
+        const user = message.mentions.users.first();
+        if (!user) return message.reply('❌ Mencione um usuário.');
+        const motivo = args.slice(1).join(' ') || 'Sem motivo';
+        if (!staffWarns.has(user.id)) staffWarns.set(user.id, []);
+        staffWarns.get(user.id).push({ motivo, staff: executor, data: new Date() });
+        const embed = createLogEmbed('⚠️ ADVERTÊNCIA DE STAFF', 0xFFA500, [
+            { name: '👤 Staff', value: `${user.tag} (${user.id})`, inline: true },
+            { name: '🛡️ Advertido por', value: executor, inline: true },
+            { name: '📝 Motivo', value: motivo, inline: true },
+            { name: '📌 Total', value: `${staffWarns.get(user.id).length}`, inline: true }
+        ], user.displayAvatarURL());
         await sendLog(message.guild, CANAL_ADVERTENCIA, embed);
-        return message.reply(`✅ ADV STAFF 3 concedido a ${user.tag} por ${executor}.`);
+        return message.reply(`✅ ${user.tag} recebeu advertência. Total: ${staffWarns.get(user.id).length}`);
+    }
+    if (cmd === 'tirarcooldown' && podeTirarCooldown(member)) {
+        const user = message.mentions.users.first();
+        if (!user) return message.reply('❌ Mencione um usuário.');
+        if (cooldownAvaliacao.has(user.id)) {
+            cooldownAvaliacao.delete(user.id);
+            return message.reply(`✅ Cooldown removido para ${user.tag}.`);
+        } else {
+            return message.reply(`ℹ️ ${user.tag} não estava em cooldown.`);
+        }
     }
     if (cmd === 'ajuda') {
         const embed = new EmbedBuilder().setColor(0x0099FF).setTitle('📚 Atlas RP - Comandos')
             .setDescription(`Prefixo: **&** | Slash: **/**`)
             .addFields(
-                { name: '👑 Líder/Desenvolvedor', value: '`ban`, `unban`, `adv3`, `demitir`', inline: true },
-                { name: '⭐ Coordenador', value: '`adv2`, `mute`, `unmute`, `warn`, `promover`, `rebaixar`', inline: true },
-                { name: '🛡️ Supervisor', value: '`adv1`, `mute`, `unmute`, `warn`, `advertir-staff`', inline: true },
+                { name: '👑 Líder/Desenvolvedor', value: '`ban`, `unban`, `demitir`', inline: true },
+                { name: '⭐ Coordenador', value: '`mute`, `unmute`, `warn`, `promover`, `rebaixar`', inline: true },
+                { name: '🛡️ Supervisor', value: '`mute`, `unmute`, `warn`, `advertir-staff`', inline: true },
                 { name: '🔧 Admin', value: '`mute`, `unmute`, `warn`', inline: true },
                 { name: '⭐ Todos', value: '`avaliar`, `media`, `ranking`', inline: true },
-                { name: '🔧 Outros', value: '`banlist`, `warns`, `tirarcooldown`', inline: true }
+                { name: '🔧 Outros', value: '`banlist`, `warns`, `tirarcooldown`, `adv` (via slash)', inline: true }
             );
         return message.reply({ embeds: [embed] });
     }
 });
 
-// ==================== INTERAÇÕES (MODAIS E SLASH) ====================
+// ==================== INTERAÇÕES (MODAIS, DROPDOWN, SLASH) ====================
 client.on('interactionCreate', async interaction => {
-    // MODAIS (comandos de staff)
-    if (interaction.isModalSubmit()) {
-        const cmd = interaction.customId.replace('Modal', '');
-        const usuarioInput = interaction.fields.getTextInputValue('usuario');
-        const motivo = interaction.fields.getTextInputValue('motivo') || 'Sem motivo';
-        const userId = usuarioInput.match(/\d+/g)?.[0] || usuarioInput;
-        const target = await interaction.guild.members.fetch(userId).catch(() => null);
-        if (!target) return interaction.reply({ content: '❌ Usuário não encontrado.', ephemeral: true });
-        const executor = interaction.user.tag;
-        const member = interaction.member;
-
-        if (cmd === 'promover') {
-            if (!podePromover(member)) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
-            const cargoAtual = await getCargoAtual(target);
-            if (cargoAtual.nivel === 0) return interaction.reply({ content: `❌ ${target.user.tag} não possui cargo.`, ephemeral: true });
-            if (cargoAtual.nivel >= 4) return interaction.reply({ content: `❌ ${target.user.tag} já está no máximo.`, ephemeral: true });
-            const novoNivel = cargoAtual.nivel + 1;
-            const novoCargoNome = getCargoNome(novoNivel);
-            const cargoRole = interaction.guild.roles.cache.find(r => r.name === novoCargoNome);
-            const cargoAntigoRole = interaction.guild.roles.cache.find(r => r.name === cargoAtual.nome);
-            if (!cargoRole) return interaction.reply({ content: `❌ Cargo ${novoCargoNome} não encontrado.`, ephemeral: true });
-            await target.roles.remove(cargoAntigoRole);
-            await target.roles.add(cargoRole);
-            const log = createLogEmbed('⭐ PROMOÇÃO DE STAFF', 0x00FF00, [
-                { name: '👤 Staff', value: `${target.user.tag} (${target.id})`, inline: true },
-                { name: '📈 De', value: cargoAtual.nome, inline: true },
-                { name: '📈 Para', value: novoCargoNome, inline: true },
-                { name: '🛡️ Promovido por', value: executor, inline: true },
-                { name: '📝 Motivo', value: motivo, inline: true }
-            ], target.user.displayAvatarURL());
-            await sendLog(interaction.guild, CANAL_PROMOVIDO, log);
-            return interaction.reply({ content: `✅ ${target.user.tag} promovido de ${cargoAtual.nome} para ${novoCargoNome}.`, ephemeral: true });
-        }
-        if (cmd === 'rebaixar') {
-            if (!podeRebaixar(member)) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
-            const cargoAtual = await getCargoAtual(target);
-            if (cargoAtual.nivel <= 1) return interaction.reply({ content: `❌ ${target.user.tag} não pode ser rebaixado.`, ephemeral: true });
-            const novoNivel = cargoAtual.nivel - 1;
-            const novoCargoNome = getCargoNome(novoNivel);
-            const cargoRole = interaction.guild.roles.cache.find(r => r.name === novoCargoNome);
-            const cargoAntigoRole = interaction.guild.roles.cache.find(r => r.name === cargoAtual.nome);
-            if (!cargoRole) return interaction.reply({ content: `❌ Cargo ${novoCargoNome} não existe.`, ephemeral: true });
-            await target.roles.remove(cargoAntigoRole);
-            await target.roles.add(cargoRole);
-            const log = createLogEmbed('👇 REBAIXAMENTO DE STAFF', 0xFFA500, [
-                { name: '👤 Staff', value: `${target.user.tag} (${target.id})`, inline: true },
-                { name: '📉 De', value: cargoAtual.nome, inline: true },
-                { name: '📉 Para', value: novoCargoNome, inline: true },
-                { name: '🛡️ Rebaixado por', value: executor, inline: true },
-                { name: '📝 Motivo', value: motivo, inline: true }
-            ], target.user.displayAvatarURL());
-            await sendLog(interaction.guild, CANAL_REBAIXADO, log);
-            return interaction.reply({ content: `✅ ${target.user.tag} rebaixado de ${cargoAtual.nome} para ${novoCargoNome}.`, ephemeral: true });
-        }
-        if (cmd === 'demitir') {
-            if (!podeDemitir(member)) return interaction.reply({ content: '❌ Apenas Líder/Desenvolvedor pode demitir.', ephemeral: true });
-            const cargoAtual = await getCargoAtual(target);
-            if (cargoAtual.nivel === 0) return interaction.reply({ content: `❌ ${target.user.tag} não possui cargo.`, ephemeral: true });
-            const cargoRole = interaction.guild.roles.cache.find(r => r.name === cargoAtual.nome);
-            await target.roles.remove(cargoRole);
-            const log = createLogEmbed('❌ DEMISSÃO DE STAFF', 0xFF0000, [
-                { name: '👤 Staff', value: `${target.user.tag} (${target.id})`, inline: true },
-                { name: '📛 Cargo anterior', value: cargoAtual.nome, inline: true },
-                { name: '🛡️ Demitido por', value: executor, inline: true },
-                { name: '📝 Motivo', value: motivo, inline: true }
-            ], target.user.displayAvatarURL());
-            await sendLog(interaction.guild, CANAL_DEMITIDO, log);
-            return interaction.reply({ content: `✅ ${target.user.tag} demitido.`, ephemeral: true });
-        }
-        if (cmd === 'advertir-staff') {
-            if (!podeAdvertirStaff(member)) return interaction.reply({ content: '❌ Apenas Supervisor+ pode advertir staff.', ephemeral: true });
-            if (!staffWarns.has(target.id)) staffWarns.set(target.id, []);
-            staffWarns.get(target.id).push({ motivo, staff: executor, data: new Date() });
-            const log = createLogEmbed('⚠️ ADVERTÊNCIA DE STAFF', 0xFFA500, [
-                { name: '👤 Staff', value: `${target.user.tag} (${target.id})`, inline: true },
-                { name: '🛡️ Advertido por', value: executor, inline: true },
-                { name: '📝 Motivo', value: motivo, inline: true },
-                { name: '📌 Total', value: `${staffWarns.get(target.id).length}`, inline: true }
-            ], target.user.displayAvatarURL());
-            await sendLog(interaction.guild, CANAL_ADVERTENCIA, log);
-            return interaction.reply({ content: `✅ ${target.user.tag} recebeu advertência.`, ephemeral: true });
-        }
-        if (cmd === 'tirarcooldown') {
-            if (!podeTirarCooldown(member)) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
-            if (cooldownAvaliacao.has(target.id)) {
-                cooldownAvaliacao.delete(target.id);
-                return interaction.reply({ content: `✅ Cooldown removido para ${target.user.tag}.`, ephemeral: true });
-            } else {
-                return interaction.reply({ content: `ℹ️ ${target.user.tag} não estava em cooldown.`, ephemeral: true });
-            }
-        }
+    // Modal de avaliação (público)
+    if (interaction.isModalSubmit() && interaction.customId === 'avaliarModal') {
+        const staffNome = interaction.fields.getTextInputValue('staff');
+        const nota = parseInt(interaction.fields.getTextInputValue('nota'));
+        const motivo = interaction.fields.getTextInputValue('motivo');
+        if (isNaN(nota) || nota < 1 || nota > 10) return interaction.reply({ content: '❌ Nota inválida (1 a 10).', ephemeral: true });
+        const canal = interaction.guild.channels.cache.find(c => c.name === CANAL_AVALIACOES);
+        if (!canal) return interaction.reply({ content: `❌ Canal ${CANAL_AVALIACOES} não encontrado.`, ephemeral: true });
+        const userId = staffNome.match(/\d+/g)?.[0];
+        let membro = null;
+        if (userId) try { membro = await interaction.guild.members.fetch(userId); } catch(e) {}
+        const key = userId || staffNome;
+        if (!avaliacoes.has(key)) avaliacoes.set(key, []);
+        avaliacoes.get(key).push({ nota, motivo, avaliador: interaction.user.tag, data: new Date() });
+        const media = avaliacoes.get(key).reduce((a,b)=>a+b.nota,0)/avaliacoes.get(key).length;
+        const embed = new EmbedBuilder().setColor(nota>=7?0x00FF00:nota>=4?0xFFA500:0xFF0000).setTitle('⭐ NOVA AVALIAÇÃO')
+            .addFields(
+                { name: '👨‍✈️ Staff', value: membro ? `${membro}` : staffNome, inline: true },
+                { name: '👤 Avaliador', value: interaction.user.tag, inline: true },
+                { name: '⭐ Nota', value: `${nota}/10\n${barraNota(nota)}`, inline: false },
+                { name: '📝 Feedback', value: motivo, inline: false },
+                { name: '📊 Média', value: `${media.toFixed(1)}/10`, inline: true }
+            ).setTimestamp();
+        await canal.send({ embeds: [embed] });
+        return interaction.reply({ content: '✅ Avaliação enviada!', ephemeral: true });
     }
 
-    // SLASH COMMANDS
+    // Slash commands
     if (!interaction.isChatInputCommand()) return;
     const cmd = interaction.commandName;
     const member = interaction.member;
     const executor = interaction.user.tag;
 
-    // Públicos
+    // Comandos públicos (sem verificação de staff)
     if (cmd === 'avaliar') {
         const now = Date.now();
         const last = cooldownAvaliacao.get(interaction.user.id);
@@ -839,9 +717,40 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Comandos restritos – verifica permissão básica (nível 1+)
+    // A partir daqui, apenas comandos restritos (staff)
     if (getNivel(member) === 0) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
 
+    // Comando `/adv` com dropdown
+    if (cmd === 'adv') {
+        if (!podeAdv(member)) return interaction.reply({ content: '❌ Apenas Supervisor+ pode atribuir ADV STAFF.', ephemeral: true });
+        const select = new StringSelectMenuBuilder()
+            .setCustomId('adv_select')
+            .setPlaceholder('Selecione o cargo ADV STAFF')
+            .addOptions(
+                new StringSelectMenuOptionBuilder().setLabel('ADV STAFF 1').setValue('adv1'),
+                new StringSelectMenuOptionBuilder().setLabel('ADV STAFF 2').setValue('adv2'),
+                new StringSelectMenuOptionBuilder().setLabel('ADV STAFF 3').setValue('adv3')
+            );
+        const row = new ActionRowBuilder().addComponents(select);
+        await interaction.reply({ content: 'Selecione o cargo que deseja atribuir:', components: [row], ephemeral: true });
+        return;
+    }
+
+    // Comandos de modal (promover, rebaixar, demitir, advertir-staff, tirarcooldown)
+    if (cmd === 'promover' || cmd === 'rebaixar' || cmd === 'demitir' || cmd === 'advertir-staff' || cmd === 'tirarcooldown') {
+        const modalId = `${cmd}Modal`;
+        const modalTitle = `📋 ${cmd.charAt(0).toUpperCase() + cmd.slice(1)}`;
+        const modal = new ModalBuilder().setCustomId(modalId).setTitle(modalTitle);
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('usuario').setLabel('Usuário (ID ou @)').setStyle(TextInputStyle.Short).setRequired(true))
+        );
+        if (cmd !== 'tirarcooldown') {
+            modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('motivo').setLabel('Motivo').setStyle(TextInputStyle.Paragraph).setRequired(true)));
+        }
+        return interaction.showModal(modal);
+    }
+
+    // Comandos diretos restantes (ban, unban, mute, unmute, warn, warns) – já implementados
     if (cmd === 'ban' && podeBan(member)) {
         const user = interaction.options.getUser('usuario');
         const motivo = interaction.options.getString('motivo');
@@ -921,74 +830,60 @@ client.on('interactionCreate', async interaction => {
         const embed = new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(desc);
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
-    if (cmd === 'adv1' && podeAdv1(member)) {
-        const user = interaction.options.getUser('usuario');
-        const motivo = interaction.options.getString('motivo');
-        const role = interaction.guild.roles.cache.find(r => r.name === 'ADV STAFF 1');
-        if (!role) return interaction.reply({ content: '❌ Cargo ADV STAFF 1 não existe.', ephemeral: true });
-        const target = await interaction.guild.members.fetch(user.id);
-        await target.roles.add(role);
-        const embed = createLogEmbed('🏷️ ADV STAFF 1 (SLASH)', 0x00FF00, [
-            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: true },
-            { name: '🛡️ Staff', value: executor, inline: true },
-            { name: '📝 Motivo', value: motivo, inline: true }
-        ], user.displayAvatarURL());
-        await sendLog(interaction.guild, CANAL_ADVERTENCIA, embed);
-        return interaction.reply({ content: `✅ ADV STAFF 1 concedido.`, ephemeral: true });
-    }
-    if (cmd === 'adv2' && podeAdv2(member)) {
-        const user = interaction.options.getUser('usuario');
-        const motivo = interaction.options.getString('motivo');
-        const role = interaction.guild.roles.cache.find(r => r.name === 'ADV STAFF 2');
-        if (!role) return interaction.reply({ content: '❌ Cargo ADV STAFF 2 não existe.', ephemeral: true });
-        const target = await interaction.guild.members.fetch(user.id);
-        await target.roles.add(role);
-        const embed = createLogEmbed('🏷️ ADV STAFF 2 (SLASH)', 0x00FF00, [
-            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: true },
-            { name: '🛡️ Staff', value: executor, inline: true },
-            { name: '📝 Motivo', value: motivo, inline: true }
-        ], user.displayAvatarURL());
-        await sendLog(interaction.guild, CANAL_ADVERTENCIA, embed);
-        return interaction.reply({ content: `✅ ADV STAFF 2 concedido.`, ephemeral: true });
-    }
-    if (cmd === 'adv3' && podeAdv3(member)) {
-        const user = interaction.options.getUser('usuario');
-        const motivo = interaction.options.getString('motivo');
-        const role = interaction.guild.roles.cache.find(r => r.name === 'ADV STAFF 3');
-        if (!role) return interaction.reply({ content: '❌ Cargo ADV STAFF 3 não existe.', ephemeral: true });
-        const target = await interaction.guild.members.fetch(user.id);
-        await target.roles.add(role);
-        const embed = createLogEmbed('🏷️ ADV STAFF 3 (SLASH)', 0x00FF00, [
-            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: true },
-            { name: '🛡️ Staff', value: executor, inline: true },
-            { name: '📝 Motivo', value: motivo, inline: true }
-        ], user.displayAvatarURL());
-        await sendLog(interaction.guild, CANAL_ADVERTENCIA, embed);
-        return interaction.reply({ content: `✅ ADV STAFF 3 concedido.`, ephemeral: true });
-    }
-    // Comandos que abrem modal via slash (já tratados no modal acima, mas o registro do comando já existe)
-    if (cmd === 'promover' || cmd === 'rebaixar' || cmd === 'demitir' || cmd === 'advertir-staff' || cmd === 'tirarcooldown') {
-        const modalId = `${cmd}Modal`;
-        const modalTitle = `📋 ${cmd.charAt(0).toUpperCase() + cmd.slice(1)}`;
-        const modal = new ModalBuilder().setCustomId(modalId).setTitle(modalTitle);
-        modal.addComponents(
-            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('usuario').setLabel('Usuário (ID ou @)').setStyle(TextInputStyle.Short).setRequired(true))
-        );
-        if (cmd !== 'tirarcooldown') {
-            modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('motivo').setLabel('Motivo').setStyle(TextInputStyle.Paragraph).setRequired(true)));
-        }
-        return interaction.showModal(modal);
-    }
+
     if (cmd === 'ajuda') {
         const embed = new EmbedBuilder().setColor(0x0099FF).setTitle('📚 Atlas RP - Slash Commands')
             .addFields(
-                { name: '👑 Líder/Desenvolvedor', value: '/ban, /unban, /adv3, /demitir', inline: true },
-                { name: '⭐ Coordenador', value: '/adv2, /mute, /unmute, /warn, /promover, /rebaixar', inline: true },
-                { name: '🛡️ Supervisor', value: '/adv1, /mute, /unmute, /warn, /advertir-staff', inline: true },
+                { name: '👑 Líder/Desenvolvedor', value: '/ban, /unban, /demitir', inline: true },
+                { name: '⭐ Coordenador', value: '/mute, /unmute, /warn, /promover, /rebaixar', inline: true },
+                { name: '🛡️ Supervisor', value: '/mute, /unmute, /warn, /advertir-staff, /adv', inline: true },
                 { name: '🔧 Admin', value: '/mute, /unmute, /warn', inline: true },
                 { name: '⭐ Todos', value: '/avaliar, /media, /ranking', inline: true }
             );
         return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+});
+
+// Tratamento do dropdown do `/adv`
+client.on('interactionCreate', async interaction => {
+    if (!interaction.isStringSelectMenu()) return;
+    if (interaction.customId === 'adv_select') {
+        const selected = interaction.values[0]; // 'adv1', 'adv2' ou 'adv3'
+        const roleName = selected === 'adv1' ? 'ADV STAFF 1' : selected === 'adv2' ? 'ADV STAFF 2' : 'ADV STAFF 3';
+        // Guarda temporariamente a escolha – pedir usuário e motivo em um modal
+        const modal = new ModalBuilder().setCustomId(`advModal_${selected}`).setTitle(`Atribuir ${roleName}`);
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('usuario').setLabel('Usuário (ID ou @)').setStyle(TextInputStyle.Short).setRequired(true)),
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('motivo').setLabel('Motivo').setStyle(TextInputStyle.Paragraph).setRequired(true))
+        );
+        await interaction.showModal(modal);
+    }
+});
+
+// Modal do `/adv` (após escolha do dropdown)
+client.on('interactionCreate', async interaction => {
+    if (!interaction.isModalSubmit()) return;
+    if (interaction.customId.startsWith('advModal_')) {
+        const selected = interaction.customId.split('_')[1];
+        const roleName = selected === 'adv1' ? 'ADV STAFF 1' : selected === 'adv2' ? 'ADV STAFF 2' : 'ADV STAFF 3';
+        const usuarioInput = interaction.fields.getTextInputValue('usuario');
+        const motivo = interaction.fields.getTextInputValue('motivo');
+        const userId = usuarioInput.match(/\d+/g)?.[0] || usuarioInput;
+        const target = await interaction.guild.members.fetch(userId).catch(() => null);
+        if (!target) return interaction.reply({ content: '❌ Usuário não encontrado.', ephemeral: true });
+        const executor = interaction.user.tag;
+        const member = interaction.member;
+        if (!podeAdv(member)) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
+        const role = interaction.guild.roles.cache.find(r => r.name === roleName);
+        if (!role) return interaction.reply({ content: `❌ Cargo ${roleName} não existe.`, ephemeral: true });
+        await target.roles.add(role);
+        const embed = createLogEmbed(`🏷️ ${roleName} ATRIBUÍDO`, 0x00FF00, [
+            { name: '👤 Usuário', value: `${target.user.tag} (${target.id})`, inline: true },
+            { name: '🛡️ Staff', value: executor, inline: true },
+            { name: '📝 Motivo', value: motivo, inline: true }
+        ], target.user.displayAvatarURL());
+        await sendLog(interaction.guild, CANAL_ADVERTENCIA, embed);
+        return interaction.reply({ content: `✅ ${roleName} concedido a ${target.user.tag}.`, ephemeral: true });
     }
 });
 
