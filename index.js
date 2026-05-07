@@ -67,6 +67,7 @@ const LEVEL_CARGOS = {
 };
 
 function getNivel(member) {
+    if (!member || !member.guild) return 0;
     if (member.id === member.guild.ownerId || member.permissions.has(PermissionsBitField.Flags.Administrator)) return 9;
     for (let [cargo, nivel] of Object.entries(CARGOS_LEVEL)) {
         if (member.roles.cache.some(r => r.name === cargo)) return nivel;
@@ -74,7 +75,6 @@ function getNivel(member) {
     return 0;
 }
 
-// Permissões
 const podeBan = m => getNivel(m) >= 8;
 const podeUnban = m => getNivel(m) >= 8;
 const podeMute = m => getNivel(m) >= 1;
@@ -103,11 +103,9 @@ function podeRebaixar(executor, alvo) {
     return true;
 }
 
-// ==================== COOLDOWN ====================
 const cooldownAvaliacao = new Map();
 const COOLDOWN_TIME = 15 * 60 * 1000;
 
-// ==================== FUNÇÕES GLOBAIS ====================
 async function sendLog(guild, channelName, embed) {
     const channel = guild.channels.cache.find(c => c.name === channelName && c.isTextBased());
     if (channel) await channel.send({ embeds: [embed] }).catch(() => {});
@@ -123,6 +121,7 @@ function barraNota(nota) {
     return '▰'.repeat(preenchidos) + '▱'.repeat(total - preenchidos);
 }
 async function getCargoAtual(member) {
+    if (!member) return { nome: null, nivel: 0 };
     for (let [cargo, nivel] of Object.entries(CARGOS_LEVEL)) {
         if (member.roles.cache.some(r => r.name === cargo)) return { nome: cargo, nivel };
     }
@@ -156,7 +155,6 @@ async function criarCanaisLog(guild) {
     }
 }
 
-// ==================== SLASH COMMANDS ====================
 const slashCommands = [
     { name: 'avaliar', description: '⭐ Avaliar staff (1-10) - Todos' },
     { name: 'media', description: 'Média do staff', options: [{ name: 'staff', type: 6, description: 'Staff a ser consultado', required: true }] },
@@ -577,9 +575,9 @@ client.on('messageCreate', async message => {
     }
 });
 
-// ==================== INTERAÇÕES (SLASH, MODAIS, DROPDOWN) ====================
+// ==================== INTERAÇÕES ====================
 client.on('interactionCreate', async interaction => {
-    // MODAL DE AVALIAÇÃO (cooldown aplicado aqui)
+    // Modal de avaliação
     if (interaction.isModalSubmit() && interaction.customId === 'avaliarModal') {
         const now = Date.now();
         const last = cooldownAvaliacao.get(interaction.user.id);
@@ -613,13 +611,16 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: '✅ Avaliação enviada!', ephemeral: true });
     }
 
-    // SLASH COMMANDS
     if (!interaction.isChatInputCommand()) return;
     const cmd = interaction.commandName;
     const member = interaction.member;
     const executor = interaction.user.tag;
 
-    // Comandos públicos
+    if (!member) {
+        return interaction.reply({ content: '❌ Não foi possível identificar seu membro.', ephemeral: true });
+    }
+
+    // Públicos
     if (cmd === 'avaliar') {
         const modal = new ModalBuilder().setCustomId('avaliarModal').setTitle('⭐ Avaliar Staff');
         modal.addComponents(
@@ -649,10 +650,9 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Verificar se é staff
     if (getNivel(member) === 0) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
 
-    // Comandos de moderação via slash
+    // Comandos de moderação
     if (cmd === 'ban' && podeBan(member)) {
         const user = interaction.options.getUser('usuario');
         const motivo = interaction.options.getString('motivo');
@@ -815,7 +815,7 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// Modais de staff (promover, rebaixar, demitir, etc.)
+// Modais de staff
 client.on('interactionCreate', async interaction => {
     if (!interaction.isModalSubmit()) return;
     const modalId = interaction.customId;
