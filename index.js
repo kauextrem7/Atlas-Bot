@@ -42,7 +42,7 @@ const canaisLog = [
     { nome: CANAL_BOOSTS, desc: 'Boosts do servidor' }
 ];
 
-// ==================== HIERARQUIA DE CARGOS ====================
+// ==================== HIERARQUIA ====================
 const CARGOS_LEVEL = {
     'Staff': 1,
     'Estagiário(a)': 2,
@@ -74,7 +74,7 @@ function getNivel(member) {
     return 0;
 }
 
-// Permissões baseadas no nível
+// Permissões
 const podeBan = m => getNivel(m) >= 8;
 const podeUnban = m => getNivel(m) >= 8;
 const podeMute = m => getNivel(m) >= 1;
@@ -107,7 +107,7 @@ function podeRebaixar(executor, alvo) {
 const cooldownAvaliacao = new Map();
 const COOLDOWN_TIME = 15 * 60 * 1000;
 
-// ==================== FUNÇÕES AUXILIARES ====================
+// ==================== FUNÇÕES GLOBAIS ====================
 async function sendLog(guild, channelName, embed) {
     const channel = guild.channels.cache.find(c => c.name === channelName && c.isTextBased());
     if (channel) await channel.send({ embeds: [embed] }).catch(() => {});
@@ -156,7 +156,7 @@ async function criarCanaisLog(guild) {
     }
 }
 
-// ==================== SLASH COMMANDS (sem default_member_permissions) ====================
+// ==================== SLASH COMMANDS ====================
 const slashCommands = [
     { name: 'avaliar', description: '⭐ Avaliar staff (1-10) - Todos' },
     { name: 'media', description: 'Média do staff', options: [{ name: 'staff', type: 6, required: true }] },
@@ -246,6 +246,7 @@ client.once('ready', async () => {
 });
 
 // ==================== LOGS COMPLETOS ====================
+// Membros
 client.on('guildMemberAdd', async member => {
     const embed = createLogEmbed('📥 MEMBRO ENTROU', 0x00FF00, [
         { name: '👤 Membro', value: `${member.user.tag} (${member.id})`, inline: true },
@@ -265,6 +266,7 @@ client.on('guildMemberRemove', async member => {
     ], member.user.displayAvatarURL());
     await sendLog(member.guild, CANAL_MEMBROS, embed);
 });
+// Voz
 client.on('voiceStateUpdate', async (oldState, newState) => {
     const member = newState.member || oldState.member;
     if (!member || member.user.bot) return;
@@ -282,7 +284,17 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         ], member.user.displayAvatarURL());
         await sendLog(member.guild, CANAL_MEMBROS, embed);
     }
+    if (oldState.mute !== newState.mute || oldState.serverMute !== newState.serverMute) {
+        const acao = newState.mute ? 'MUTADO' : 'DESMUTADO';
+        const corAc = newState.mute ? 0xFFA500 : 0x00FF00;
+        const embed = createLogEmbed(`🔇 ${acao} NA CALL`, `${member.user.tag} foi ${acao.toLowerCase()}`, corAc, [
+            { name: '👤 Membro', value: member.user.tag, inline: true },
+            { name: '🎧 Canal', value: newState.channelId ? `<#${newState.channelId}>` : `<#${oldState.channelId}>`, inline: true }
+        ], member.user.displayAvatarURL());
+        await sendLog(member.guild, CANAL_MEMBROS, embed);
+    }
 });
+// Apelidos
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
     if (oldMember.nickname !== newMember.nickname) {
         const embed = createLogEmbed('✏️ APELIDO ALTERADO', 0xFFA500, [
@@ -316,6 +328,7 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
         await sendLog(newMember.guild, CANAL_CARGOS, embed);
     }
 });
+// Canais
 client.on('channelCreate', async channel => {
     if (!channel.guild) return;
     const embed = createLogEmbed('📁 CANAL CRIADO', 0x00FF00, [{ name: '📌 Nome', value: channel.name, inline: true }]);
@@ -336,6 +349,7 @@ client.on('channelUpdate', async (oldChan, newChan) => {
         await sendLog(newChan.guild, CANAL_SERVIDOR, embed);
     }
 });
+// Mensagens
 client.on('messageDelete', async message => {
     if (!message.guild || message.author?.bot) return;
     const embed = createLogEmbed('🗑️ MENSAGEM DELETADA', 0xFF0000, [
@@ -356,6 +370,7 @@ client.on('messageUpdate', async (oldMsg, newMsg) => {
     ], oldMsg.author?.displayAvatarURL());
     await sendLog(oldMsg.guild, CANAL_MENSAGENS, embed);
 });
+// Reações
 client.on('messageReactionAdd', async (reaction, user) => {
     if (user.bot) return;
     const embed = createLogEmbed('⭐ REAÇÃO ADICIONADA', 0x00FF00, [
@@ -374,11 +389,13 @@ client.on('messageReactionRemove', async (reaction, user) => {
     ], user.displayAvatarURL());
     await sendLog(reaction.message.guild, CANAL_REACOES, embed);
 });
+// Webhooks
 client.on('webhookUpdate', async channel => {
     if (!channel.guild) return;
     const embed = createLogEmbed('🔗 WEBHOOK ATUALIZADO', 0xFFA500, [{ name: '📍 Canal', value: `<#${channel.id}>`, inline: true }]);
     await sendLog(channel.guild, CANAL_WEBHOOKS, embed);
 });
+// Boosts
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
     if (!oldMember.premiumSince && newMember.premiumSince) {
         const embed = createLogEmbed('💪 BOOST DO SERVIDOR', 0xFF69B4, [
@@ -388,6 +405,7 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
         await sendLog(newMember.guild, CANAL_BOOSTS, embed);
     }
 });
+// Servidor (nome, ícone)
 client.on('guildUpdate', async (oldGuild, newGuild) => {
     if (oldGuild.name !== newGuild.name) {
         const embed = createLogEmbed('📝 NOME DO SERVIDOR ALTERADO', 0xFFA500, [
@@ -401,6 +419,7 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
         await sendLog(newGuild, CANAL_SERVIDOR, embed);
     }
 });
+// Bans
 client.on('guildBanAdd', async ban => {
     const embed = createLogEmbed('🔨 USUÁRIO BANIDO', 0xFF0000, [
         { name: '👤 Usuário', value: `${ban.user.tag} (${ban.user.id})`, inline: true },
@@ -412,6 +431,7 @@ client.on('guildBanRemove', async ban => {
     const embed = createLogEmbed('✅ USUÁRIO DESBANIDO', 0x00FF00, [{ name: '👤 Usuário', value: `${ban.user.tag} (${ban.user.id})`, inline: true }], ban.user.displayAvatarURL());
     await sendLog(ban.guild, CANAL_PUNICOES, embed);
 });
+// Automod
 client.on('messageCreate', async msg => {
     if (msg.author.bot) return;
     const lower = msg.content.toLowerCase();
@@ -438,7 +458,7 @@ client.on('messageCreate', async message => {
     const member = message.member;
     const executor = message.author.tag;
 
-    // Comandos públicos (todos podem usar)
+    // Comandos públicos
     if (cmd === 'avaliar') return message.reply('⭐ Para avaliar um staff, use `/avaliar`.');
     if (cmd === 'media') {
         const user = message.mentions.users.first();
@@ -461,10 +481,9 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [embed] });
     }
 
-    // Se não é staff, bloqueia
     if (getNivel(member) === 0) return message.reply('❌ Sem permissão.');
 
-    // Comandos de moderação (via prefixo)
+    // Comandos de moderação
     if (cmd === 'ban' && podeBan(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione um usuário');
@@ -551,8 +570,7 @@ client.on('messageCreate', async message => {
         const embed = new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(desc);
         return message.reply({ embeds: [embed] });
     }
-
-    // Comandos de staff avançados – redirecionar para slash
+    // Redirecionar comandos avançados para slash
     if (cmd === 'promover' || cmd === 'rebaixar' || cmd === 'demitir' || cmd === 'advertir-staff' || cmd === 'tirarcooldown' || cmd === 'adv') {
         return message.reply(`❌ Use o comando slash \`/${cmd}\` para abrir o painel interativo.`);
     }
@@ -572,7 +590,7 @@ client.on('messageCreate', async message => {
 
 // ==================== INTERAÇÕES (SLASH, MODAIS, DROPDOWN) ====================
 client.on('interactionCreate', async interaction => {
-    // Modal de avaliação (cooldown aplicado aqui)
+    // Modal de avaliação – cooldown aqui
     if (interaction.isModalSubmit() && interaction.customId === 'avaliarModal') {
         const now = Date.now();
         const last = cooldownAvaliacao.get(interaction.user.id);
@@ -641,10 +659,10 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Comandos restritos – verificar permissão por cargo (nível)
+    // Verificar permissão (staff)
     if (getNivel(member) === 0) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
 
-    // Comandos de moderação via slash
+    // Comandos de moderação
     if (cmd === 'ban' && podeBan(member)) {
         const user = interaction.options.getUser('usuario');
         const motivo = interaction.options.getString('motivo');
@@ -725,7 +743,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Comandos de staff avançados (com modal)
+    // Comandos avançados com modal
     if (cmd === 'promover') {
         if (!podePromover(member, { id: 'dummy' })) return interaction.reply({ content: '❌ Você não pode promover.', ephemeral: true });
         const modal = new ModalBuilder().setCustomId('promoverModal').setTitle('Promover Staff');
@@ -792,7 +810,7 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// Dropdown handler para ADV
+// Dropdown ADV
 client.on('interactionCreate', async interaction => {
     if (!interaction.isStringSelectMenu()) return;
     if (interaction.customId === 'adv_select') {
@@ -807,11 +825,12 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// Modais de promover, rebaixar, demitir, advertir-staff, tirarcooldown e adv
+// Modais de todos os comandos de staff
 client.on('interactionCreate', async interaction => {
     if (!interaction.isModalSubmit()) return;
     const modalId = interaction.customId;
-    if (modalId === 'promoverModal' || modalId === 'rebaixarModal' || modalId === 'demitirModal' || modalId === 'advertirStaffModal' || modalId === 'tirarCooldownModal' || modalId.startsWith('advModal_')) {
+    const validModals = ['promoverModal', 'rebaixarModal', 'demitirModal', 'advertirStaffModal', 'tirarCooldownModal'];
+    if (validModals.includes(modalId) || modalId.startsWith('advModal_')) {
         const usuarioInput = interaction.fields.getTextInputValue('usuario');
         const motivo = interaction.fields.getTextInputValue('motivo') || 'Sem motivo';
         const userId = usuarioInput.match(/\d+/g)?.[0];
