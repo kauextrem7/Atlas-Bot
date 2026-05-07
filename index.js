@@ -7,7 +7,7 @@ const port = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Bot Atlas RP está online'));
 app.listen(port, () => console.log(`✅ Web server na porta ${port}`));
 
-// ==================== CANAIS ====================
+// ==================== CANAIS (todos os nomes) ====================
 const CANAL_MEMBROS = '📥・logs-membros';
 const CANAL_AUTOMOD = '🤖・logs-automod';
 const CANAL_PUNICOES = '📋・punição-discord';
@@ -26,7 +26,7 @@ const CANAL_BOOSTS = '💪・logs-boosts';
 
 const LISTA_CANAIS_LOG = [
     { nome: CANAL_MEMBROS, desc: '📥 Entrada/saída, voz e apelidos' },
-    { nome: CANAL_AUTOMOD, desc: '🤖 Automod (palavrões, links)' },
+    { nome: CANAL_AUTOMOD, desc: '🤖 Automod (palavrões, links, lock/unlock)' },
     { nome: CANAL_PUNICOES, desc: '🔨 Banimentos, kicks, muttes, warns e ADV Staff' },
     { nome: CANAL_CARGOS, desc: '🏷️ Logs de cargos' },
     { nome: CANAL_SERVIDOR, desc: '⚙️ Logs do servidor' },
@@ -97,6 +97,7 @@ function podeRebaixar(exec, alvo) {
 
 const cooldownAvaliacao = new Map();
 const COOLDOWN_TIME = 15 * 60 * 1000;
+const MENSAGEM_ROTATIVA_INTERVALO = 15 * 60 * 1000; // 15 minutos
 
 async function sendLog(guild, chan, embed) {
     const c = guild.channels.cache.find(ch => ch.name === chan && ch.isTextBased());
@@ -184,7 +185,7 @@ const avaliacoes = new Map();
 const staffWarns = new Map();
 
 let avaliacaoMsg = null;
-let intervalo = null;
+let intervaloRotativo = null;
 
 async function enviarMsgAvaliacao(guild) {
     const canal = guild.channels.cache.find(c => c.name === CANAL_AVALIACOES && c.isTextBased());
@@ -214,15 +215,15 @@ client.once('ready', async () => {
     client.user.setPresence({ activities: [{ name: 'Atlas RP | >ajuda', type: 0 }], status: 'online' });
     for (const guild of client.guilds.cache.values()) {
         await criarCanaisLog(guild);
-        if (intervalo) clearInterval(intervalo);
+        if (intervaloRotativo) clearInterval(intervaloRotativo);
         setTimeout(() => enviarMsgAvaliacao(guild), 2000);
-        intervalo = setInterval(() => enviarMsgAvaliacao(guild), 600000);
+        intervaloRotativo = setInterval(() => enviarMsgAvaliacao(guild), MENSAGEM_ROTATIVA_INTERVALO);
     }
     await regComandos();
     console.log('🟢 Bot pronto!');
 });
 
-// ==================== LOGS COMPLETOS ====================
+// -------------------- LOGS COMPLETOS --------------------
 client.on('guildMemberAdd', async member => {
     const e = createLogEmbed('📥 MEMBRO ENTROU', 0x00FF00, [
         { name: '👤 Membro', value: `${member.user.tag} (${member.id})`, inline: true },
@@ -449,7 +450,7 @@ client.on('messageCreate', async message => {
 
     if (getNivel(member) === 0) return message.reply('❌ Sem permissão.');
 
-    // Kick
+    // KICK
     if (cmd === 'kick' && podeKick(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione um usuário');
@@ -466,7 +467,7 @@ client.on('messageCreate', async message => {
         return message.reply(`✅ ${user.tag} foi expulso.`);
     }
 
-    // Ban
+    // BAN
     if (cmd === 'ban' && podeBan(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione');
@@ -480,7 +481,7 @@ client.on('messageCreate', async message => {
         await sendLog(message.guild, CANAL_PUNICOES, embed);
         return message.reply(`✅ ${user.tag} banido.`);
     }
-    // Unban
+    // UNBAN
     if (cmd === 'unban' && podeUnban(member)) {
         const id = args[0];
         if (!id) return message.reply('❌ ID');
@@ -492,7 +493,7 @@ client.on('messageCreate', async message => {
             return message.reply(`✅ ${id} desbanido.`);
         } catch { return message.reply('❌ ID inválido.'); }
     }
-    // Banlist
+    // BANLIST
     if (cmd === 'banlist' && podeBan(member)) {
         const bans = await message.guild.bans.fetch();
         if (!bans.size) return message.reply('📋 Nenhum banido.');
@@ -500,7 +501,7 @@ client.on('messageCreate', async message => {
         const embed = new EmbedBuilder().setColor(0xFF0000).setTitle('📋 BANIDOS').setDescription(lista.slice(0,4000));
         return message.reply({ embeds: [embed] });
     }
-    // Mute
+    // MUTE
     if (cmd === 'mute' && podeMute(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione');
@@ -519,7 +520,7 @@ client.on('messageCreate', async message => {
         await sendLog(message.guild, CANAL_PUNICOES, embed);
         return message.reply(`✅ ${user.tag} mutado ${tempo}min.`);
     }
-    // Unmute
+    // UNMUTE
     if (cmd === 'unmute' && podeMute(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione');
@@ -534,7 +535,7 @@ client.on('messageCreate', async message => {
         await sendLog(message.guild, CANAL_PUNICOES, embed);
         return message.reply(`✅ ${user.tag} desmutado.`);
     }
-    // Warn
+    // WARN
     if (cmd === 'warn' && podeWarn(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione');
@@ -550,7 +551,7 @@ client.on('messageCreate', async message => {
         await sendLog(message.guild, CANAL_PUNICOES, embed);
         return message.reply(`✅ Warn em ${user.tag}. Total: ${warns.get(user.id).length}`);
     }
-    // Warns
+    // WARNS
     if (cmd === 'warns' && podeWarn(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione');
@@ -561,7 +562,7 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [embed] });
     }
 
-    // LOCK - Trancar canal (apenas staff nível 5+; ao trancar, apenas staff nível 5+ pode falar)
+    // LOCK (com mensagem instantânea no canal e log no automod)
     if (cmd === 'lock') {
         if (getNivel(member) < 5) return message.reply('❌ Apenas Administrador(a)+ pode usar este comando.');
         const motivo = args.join(' ') || 'Motivo não informado';
@@ -569,27 +570,25 @@ client.on('messageCreate', async message => {
         const alreadyLocked = channel.permissionOverwrites.cache.get(message.guild.roles.everyone.id)?.deny.has(PermissionsBitField.Flags.SendMessages);
         if (alreadyLocked) return message.reply('🔒 Este canal já está trancado.');
         try {
-            // Negar envio de mensagens para @everyone
             await channel.permissionOverwrites.edit(message.guild.roles.everyone, { SendMessages: false });
-            // Permitir apenas para cargos com nível >=5 (staff)
             for (const [cargoNome, nivel] of Object.entries(CARGOS_LEVEL)) {
                 if (nivel >= 5) {
                     const role = message.guild.roles.cache.find(r => r.name === cargoNome);
                     if (role) await channel.permissionOverwrites.edit(role, { SendMessages: true });
                 }
             }
-            // Também permitir para quem tem permissão Administrator (nível 9 já incluso)
+            // Mensagem no canal (estilo Loritta)
+            await channel.send(`🎉 **Canal bloqueado com sucesso!** Use \`>unlock\` para destravar.\n🔒 Motivo: ${motivo}`);
             const embed = createLogEmbed('🔒 CANAL TRANCADO', 0xFFA500, [
                 { name: '📌 Canal', value: `${channel}`, inline: true },
                 { name: '🛡️ Staff', value: executor, inline: true },
                 { name: '📝 Motivo', value: motivo, inline: true }
             ], message.author.displayAvatarURL());
-            await sendLog(message.guild, CANAL_PUNICOES, embed);
-            await channel.send(`🔒 **Canal trancado por ${executor}**\nMotivo: ${motivo}\nApenas administradores e staff com cargo nível 5+ podem enviar mensagens.`);
-        } catch (err) { message.reply('❌ Erro ao trancar o canal. Verifique minhas permissões (Gerenciar Canais).'); }
+            await sendLog(message.guild, CANAL_AUTOMOD, embed);
+        } catch (err) { message.reply('❌ Erro ao trancar o canal.'); }
         return;
     }
-    // UNLOCK - Destrancar canal (remove todas as restrições)
+    // UNLOCK
     if (cmd === 'unlock') {
         if (getNivel(member) < 5) return message.reply('❌ Apenas Administrador(a)+ pode usar este comando.');
         const channel = message.channel;
@@ -599,12 +598,12 @@ client.on('messageCreate', async message => {
                 const role = message.guild.roles.cache.find(r => r.name === cargoNome);
                 if (role) await channel.permissionOverwrites.edit(role, { SendMessages: null });
             }
+            await channel.send(`🎉 **Canal desbloqueado com sucesso!** Use \`>lock\` para travar novamente.`);
             const embed = createLogEmbed('🔓 CANAL DESTRANCADO', 0x00FF00, [
                 { name: '📌 Canal', value: `${channel}`, inline: true },
                 { name: '🛡️ Staff', value: executor, inline: true }
             ], message.author.displayAvatarURL());
-            await sendLog(message.guild, CANAL_PUNICOES, embed);
-            await channel.send(`🔓 **Canal destrancado por ${executor}**\nTodos podem enviar mensagens novamente.`);
+            await sendLog(message.guild, CANAL_AUTOMOD, embed);
         } catch (err) { message.reply('❌ Erro ao destrancar o canal.'); }
         return;
     }
@@ -629,7 +628,7 @@ client.on('messageCreate', async message => {
 
 // ==================== INTERAÇÕES (SLASH, MODAIS, DROPDOWN) ====================
 client.on('interactionCreate', async interaction => {
-    // Modal de avaliação – corrigido para marcar staff e avaliador
+    // Modal de avaliação (cooldown após o envio)
     if (interaction.isModalSubmit() && interaction.customId === 'avaliarModal') {
         const now = Date.now();
         const last = cooldownAvaliacao.get(interaction.user.id);
@@ -719,7 +718,7 @@ client.on('interactionCreate', async interaction => {
     const nivel = getNivel(member);
     if (nivel === 0) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
 
-    // Kick
+    // KICK
     if (cmd === 'kick' && podeKick(member)) {
         await interaction.deferReply({ ephemeral: true });
         const user = interaction.options.getUser('usuario');
@@ -735,7 +734,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_PUNICOES, embed);
         return interaction.editReply({ content: `✅ ${user.tag} foi expulso.` });
     }
-    // Ban
+    // BAN
     if (cmd === 'ban' && podeBan(member)) {
         await interaction.deferReply({ ephemeral: true });
         const user = interaction.options.getUser('usuario');
@@ -749,7 +748,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_PUNICOES, embed);
         return interaction.editReply({ content: `✅ ${user.tag} banido.` });
     }
-    // Unban
+    // UNBAN
     if (cmd === 'unban' && podeUnban(member)) {
         await interaction.deferReply({ ephemeral: true });
         const id = interaction.options.getString('id');
@@ -761,7 +760,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply({ content: `✅ ${id} desbanido.` });
         } catch { return interaction.editReply({ content: '❌ ID inválido.' }); }
     }
-    // Banlist
+    // BANLIST
     if (cmd === 'banlist' && podeBan(member)) {
         await interaction.deferReply({ ephemeral: true });
         const bans = await interaction.guild.bans.fetch();
@@ -770,7 +769,7 @@ client.on('interactionCreate', async interaction => {
         const embed = new EmbedBuilder().setColor(0xFF0000).setTitle('📋 BANIDOS').setDescription(lista.slice(0,4000));
         return interaction.editReply({ embeds: [embed] });
     }
-    // Mute
+    // MUTE
     if (cmd === 'mute' && podeMute(member)) {
         await interaction.deferReply({ ephemeral: true });
         const user = interaction.options.getUser('usuario');
@@ -788,7 +787,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_PUNICOES, embed);
         return interaction.editReply({ content: `✅ ${user.tag} mutado ${tempo}min.` });
     }
-    // Unmute
+    // UNMUTE
     if (cmd === 'unmute' && podeMute(member)) {
         await interaction.deferReply({ ephemeral: true });
         const user = interaction.options.getUser('usuario');
@@ -803,7 +802,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_PUNICOES, embed);
         return interaction.editReply({ content: `✅ ${user.tag} desmutado.` });
     }
-    // Warn
+    // WARN
     if (cmd === 'warn' && podeWarn(member)) {
         await interaction.deferReply({ ephemeral: true });
         const user = interaction.options.getUser('usuario');
@@ -819,7 +818,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_PUNICOES, embed);
         return interaction.editReply({ content: `✅ Warn aplicado. Total: ${warns.get(user.id).length}` });
     }
-    // Warns
+    // WARNS
     if (cmd === 'warns' && podeWarn(member)) {
         await interaction.deferReply({ ephemeral: true });
         const user = interaction.options.getUser('usuario');
@@ -829,7 +828,7 @@ client.on('interactionCreate', async interaction => {
         const embed = new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(desc);
         return interaction.editReply({ embeds: [embed] });
     }
-    // Promover
+    // PROMOVER
     if (cmd === 'promover') {
         await interaction.deferReply({ ephemeral: true });
         const usuario = interaction.options.getUser('usuario');
@@ -856,7 +855,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_PROMOVIDO, embed);
         return interaction.editReply({ content: `✅ ${target.user.tag} promovido de ${cargoAtual.nome} para ${novoCargoNome} por ${executor}.` });
     }
-    // Rebaixar
+    // REBAIXAR
     if (cmd === 'rebaixar') {
         await interaction.deferReply({ ephemeral: true });
         const usuario = interaction.options.getUser('usuario');
@@ -882,7 +881,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_REBAIXADO, embed);
         return interaction.editReply({ content: `✅ ${target.user.tag} rebaixado de ${cargoAtual.nome} para ${novoCargoNome} por ${executor}.` });
     }
-    // Demitir
+    // DEMITIR
     if (cmd === 'demitir' && podeDemitir(member)) {
         await interaction.deferReply({ ephemeral: true });
         const usuario = interaction.options.getUser('usuario');
@@ -901,7 +900,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_DEMITIDO, embed);
         return interaction.editReply({ content: `✅ ${target.user.tag} foi demitido e perdeu todos os cargos de staff.` });
     }
-    // Advertir staff
+    // ADVERTIR STAFF
     if (cmd === 'advertir-staff' && podeAdvertirStaff(member)) {
         await interaction.deferReply({ ephemeral: true });
         const usuario = interaction.options.getUser('usuario');
@@ -918,7 +917,7 @@ client.on('interactionCreate', async interaction => {
         await sendLog(interaction.guild, CANAL_ADVERTENCIA, embed);
         return interaction.editReply({ content: `✅ ${usuario.tag} advertido por ${executor}. Total: ${staffWarns.get(targetId).length}` });
     }
-    // Tirar cooldown
+    // TIRAR COOLDOWN
     if (cmd === 'tirarcooldown' && podeTirarCooldown(member)) {
         await interaction.deferReply({ ephemeral: true });
         const usuario = interaction.options.getUser('usuario');
@@ -929,7 +928,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply({ content: `ℹ️ ${usuario.tag} não estava em cooldown.` });
         }
     }
-    // ADV
+    // ADV (dropdown)
     if (cmd === 'adv') {
         if (getNivel(member) < 5) return interaction.reply({ content: '❌ Apenas Administrador+ pode atribuir ADV.', ephemeral: true });
         const select = new StringSelectMenuBuilder()
