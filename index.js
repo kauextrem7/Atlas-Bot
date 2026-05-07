@@ -17,520 +17,378 @@ const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 
-const ADV_STAFF_ROLES = {
-    'adv1': 'ADV STAFF 1',
-    'adv2': 'ADV STAFF 2',
-    'adv3': 'ADV STAFF 3'
-};
-
+const ADV_STAFF_ROLES = { adv1: 'ADV STAFF 1', adv2: 'ADV STAFF 2', adv3: 'ADV STAFF 3' };
 const badWords = ['vadia', 'puta', 'caralho', 'merda', 'bosta', 'desgraça', 'fuder', 'foder', 'filho da puta', 'arrombado', 'viado', 'corno', 'pau no cu', 'cuzão', 'porra', 'cacete', 'krl', 'pkrl', 'fdp'];
 
 const warns = new Map();
 const avaliacoes = new Map();
 
-function getCargoLevel(member) {
+function getNivel(member) {
     if (member.roles.cache.some(r => r.name === 'Líder Administrativo')) return 4;
     if (member.roles.cache.some(r => r.name === 'Coordenador(a)')) return 3;
     if (member.roles.cache.some(r => r.name === 'Supervisor(a)')) return 2;
     if (member.roles.cache.some(r => r.name === 'Administrador(a)')) return 1;
     return 0;
 }
-
-function podeBan(member) { return getCargoLevel(member) >= 4; }
-function podeUnban(member) { return getCargoLevel(member) >= 4; }
-function podeMute(member) { return getCargoLevel(member) >= 1; }
-function podeWarn(member) { return getCargoLevel(member) >= 1; }
-function podeAdv1(member) { return getCargoLevel(member) >= 2; }
-function podeAdv2(member) { return getCargoLevel(member) >= 3; }
-function podeAdv3(member) { return getCargoLevel(member) >= 4; }
+function podeBan(m) { return getNivel(m) >= 4; }
+function podeUnban(m) { return getNivel(m) >= 4; }
+function podeMute(m) { return getNivel(m) >= 1; }
+function podeWarn(m) { return getNivel(m) >= 1; }
+function podeAdv1(m) { return getNivel(m) >= 2; }
+function podeAdv2(m) { return getNivel(m) >= 3; }
+function podeAdv3(m) { return getNivel(m) >= 4; }
 
 async function sendLog(guild, channelName, embed) {
     try {
-        const channel = guild.channels.cache.find(c => c.name === channelName && c.isTextBased());
-        if (channel) await channel.send({ embeds: [embed] });
-    } catch (error) {}
+        const ch = guild.channels.cache.find(c => c.name === channelName && c.isTextBased());
+        if (ch) await ch.send({ embeds: [embed] });
+    } catch (e) {}
 }
-
-function createLogEmbed(title, color, fields = []) {
-    const embed = new EmbedBuilder().setColor(color).setTitle(title).setTimestamp();
-    fields.forEach(f => embed.addFields({ name: f.name, value: f.value, inline: f.inline || false }));
-    return embed;
+function logEmbed(title, color, fields) {
+    const e = new EmbedBuilder().setColor(color).setTitle(title).setTimestamp();
+    fields.forEach(f => e.addFields({ name: f.name, value: f.value, inline: f.inline || false }));
+    return e;
 }
-
-function barraNota(nota) {
-    const total = 20;
-    const preenchidos = Math.round((nota / 10) * total);
-    return '▰'.repeat(preenchidos) + '▱'.repeat(total - preenchidos);
-}
+function barraNota(nota) { return '▰'.repeat(Math.round((nota / 10) * 20)) + '▱'.repeat(20 - Math.round((nota / 10) * 20)); }
 
 const commands = [
-    { name: 'ban', description: 'Banir um membro', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
-    { name: 'unban', description: 'Desbanir um membro', options: [{ name: 'id', type: 3, required: true, description: 'ID' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
+    { name: 'ban', description: 'Banir', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'unban', description: 'Desbanir', options: [{ name: 'id', type: 3, required: true }, { name: 'motivo', type: 3, required: true }] },
     { name: 'banlist', description: 'Lista de banidos' },
-    { name: 'mute', description: 'Mutar', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'tempo', type: 4, required: true, description: 'Minutos' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
-    { name: 'unmute', description: 'Desmutar', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
-    { name: 'warn', description: 'Advertir', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
-    { name: 'warns', description: 'Ver warns', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }] },
-    { name: 'adv1', description: 'ADV STAFF 1', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
-    { name: 'adv2', description: 'ADV STAFF 2', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
-    { name: 'adv3', description: 'ADV STAFF 3', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
+    { name: 'mute', description: 'Mutar', options: [{ name: 'usuario', type: 6, required: true }, { name: 'tempo', type: 4, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'unmute', description: 'Desmutar', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'warn', description: 'Advertir', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'warns', description: 'Ver warns', options: [{ name: 'usuario', type: 6, required: true }] },
+    { name: 'adv1', description: 'ADV STAFF 1', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'adv2', description: 'ADV STAFF 2', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'adv3', description: 'ADV STAFF 3', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
     { name: 'avaliar', description: 'Avaliar staff (1-10) - Todos' },
-    { name: 'media', description: 'Média do staff - Todos', options: [{ name: 'staff', type: 6, required: true, description: 'Staff' }] },
-    { name: 'ranking', description: 'Ranking staffs - Todos' },
+    { name: 'media', description: 'Média do staff', options: [{ name: 'staff', type: 6, required: true }] },
+    { name: 'ranking', description: 'Ranking staffs' },
     { name: 'ajuda', description: 'Comandos' }
 ];
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
-
-async function registerCommands() {
+async function regComandos() {
     try {
         console.log('📌 Registrando comandos...');
         await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
-        console.log('✅ Comandos registrados!');
-    } catch (error) { console.error('❌ Erro:', error); }
+        console.log('✅ OK');
+    } catch (e) { console.error(e); }
 }
 
-client.once(Events.ClientReady, async (c) => {
-    console.log(`✅ Bot ${c.user.tag} online!`);
+client.once(Events.ClientReady, async c => {
+    console.log(`✅ ${c.user.tag} online`);
     client.user.setPresence({ activities: [{ name: 'Atlas RP | &ajuda', type: 0 }], status: 'online' });
-    await registerCommands();
-    console.log('🟢 Bot pronto!');
+    await regComandos();
+    console.log('🟢 Pronto');
 });
 
-client.on(Events.GuildMemberAdd, async (member) => {
-    const embed = createLogEmbed('📥 MEMBRO ENTROU', 0x00FF00, [
-        { name: '👤 Membro', value: member.user.tag, inline: true },
-        { name: '👥 Total', value: `${member.guild.memberCount}`, inline: true }
-    ]);
-    await sendLog(member.guild, '📥・logs-membros', embed);
-    
-    const dmEmbed = new EmbedBuilder().setColor(0x00FF00).setTitle('📥 Bem-vindo ao Atlas RP!')
-        .setDescription(`Olá ${member.user}!\n📌 Regras: https://discord.com/channels/1493042257861939372/1497661394936660049\n📌 Regras In-Game: https://discord.com/channels/1493042257861939372/1497661392864411779`);
-    await member.send({ embeds: [dmEmbed] }).catch(() => {});
+client.on(Events.GuildMemberAdd, async member => {
+    await sendLog(member.guild, '📥・logs-membros', logEmbed('📥 MEMBRO ENTROU', 0x00FF00, [{ name: '👤 Membro', value: member.user.tag, inline: true }, { name: '👥 Total', value: `${member.guild.memberCount}`, inline: true }]));
+    member.send({ embeds: [new EmbedBuilder().setColor(0x00FF00).setTitle('📥 Bem-vindo').setDescription(`Olá ${member.user}!\n📌 Regras: <link>`)] }).catch(() => {});
+});
+client.on(Events.GuildMemberRemove, async member => {
+    await sendLog(member.guild, '📥・logs-membros', logEmbed('📤 MEMBRO SAIU', 0xFF0000, [{ name: '👤 Membro', value: member.user.tag, inline: true }, { name: '👥 Total', value: `${member.guild.memberCount}`, inline: true }]));
 });
 
-client.on(Events.GuildMemberRemove, async (member) => {
-    const embed = createLogEmbed('📤 MEMBRO SAIU', 0xFF0000, [
-        { name: '👤 Membro', value: member.user.tag, inline: true },
-        { name: '👥 Total', value: `${member.guild.memberCount}`, inline: true }
-    ]);
-    await sendLog(member.guild, '📥・logs-membros', embed);
-});
-
-// AUTOMOD
-client.on(Events.MessageCreate, async (message) => {
-    if (message.author.bot) return;
-    const content = message.content.toLowerCase();
-    let bloqueado = false;
-    let motivo = '';
-    
-    for (const word of badWords) {
-        if (content.includes(word)) { bloqueado = true; motivo = `Palavrão: ${word}`; break; }
-    }
-    if (content.includes('discord.gg/') || content.includes('discord.com/invite/')) {
-        bloqueado = true;
-        motivo = 'Link de servidor Discord';
-    }
-    
+client.on(Events.MessageCreate, async msg => {
+    if (msg.author.bot) return;
+    const lower = msg.content.toLowerCase();
+    let bloqueado = false, motivo = '';
+    for (const word of badWords) if (lower.includes(word)) { bloqueado = true; motivo = `Palavrão: ${word}`; break; }
+    if (lower.includes('discord.gg/') || lower.includes('discord.com/invite/')) { bloqueado = true; motivo = 'Link de servidor'; }
     if (bloqueado) {
-        await message.delete();
-        const embed = createLogEmbed('⚠️ AUTOMOD', 0xFF0000, [
-            { name: '👤 Membro', value: message.author.tag, inline: true },
-            { name: '🚫 Motivo', value: motivo, inline: true }
-        ]);
-        await sendLog(message.guild, '🤖・logs-automod', embed);
+        await msg.delete();
+        await sendLog(msg.guild, '🤖・logs-automod', logEmbed('⚠️ AUTOMOD', 0xFF0000, [{ name: '👤 Membro', value: msg.author.tag, inline: true }, { name: '🚫 Motivo', value: motivo, inline: true }]));
     }
-});
+    if (!msg.content.startsWith(PREFIX)) return;
+    const args = msg.content.slice(PREFIX.length).trim().split(/ +/);
+    const cmd = args.shift().toLowerCase();
+    const m = msg.member;
+    const exec = msg.author.tag;
 
-// COMANDOS DE PREFIXO
-client.on(Events.MessageCreate, async (message) => {
-    if (message.author.bot) return;
-    if (!message.content.startsWith(PREFIX)) return;
-    
-    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-    const command = args.shift().toLowerCase();
-    const member = message.member;
-    const executor = message.author.tag;
-    
-    // Comandos para TODOS
-    if (command === 'avaliar') {
+    if (cmd === 'avaliar') {
         const modal = new ModalBuilder().setCustomId('avaliarModal').setTitle('⭐ Avaliar Staff');
-        modal.addComponents(
-            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('staff').setLabel('Staff (@ ou nome)').setStyle(TextInputStyle.Short).setRequired(true)),
-            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('nota').setLabel('Nota (1 a 10)').setStyle(TextInputStyle.Short).setRequired(true)),
-            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('motivo').setLabel('Feedback').setStyle(TextInputStyle.Paragraph).setRequired(true))
-        );
-        await message.showModal(modal);
+        modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('staff').setLabel('Staff (@ ou nome)').setStyle(TextInputStyle.Short).setRequired(true)));
+        modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('nota').setLabel('Nota (1 a 10)').setStyle(TextInputStyle.Short).setRequired(true)));
+        modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('motivo').setLabel('Feedback').setStyle(TextInputStyle.Paragraph).setRequired(true)));
+        await msg.showModal(modal);
         return;
     }
-    
-    if (command === 'media') {
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione um staff!');
+    if (cmd === 'media') {
+        const user = msg.mentions.users.first();
+        if (!user) return msg.reply('❌ Mencione um staff');
         const avs = avaliacoes.get(user.id);
-        if (!avs || avs.length === 0) return message.reply(`📋 ${user.tag} não tem avaliações.`);
-        const media = avs.reduce((a, b) => a + b.nota, 0) / avs.length;
-        const embed = new EmbedBuilder().setColor(0x00FF00).setTitle(`⭐ Média de ${user.tag}`).setDescription(`${media.toFixed(1)}/10\n${barraNota(media)}\nTotal: ${avs.length} avaliações`);
-        message.reply({ embeds: [embed] });
-        return;
+        if (!avs || !avs.length) return msg.reply(`📋 ${user.tag} sem avaliações`);
+        const media = avs.reduce((a,b)=>a+b.nota,0)/avs.length;
+        return msg.reply({ embeds: [new EmbedBuilder().setColor(0x00FF00).setTitle(`⭐ Média de ${user.tag}`).setDescription(`${media.toFixed(1)}/10\n${barraNota(media)}\nTotal: ${avs.length} avaliações`)] });
     }
-    
-    if (command === 'ranking') {
-        const ranking = Array.from(avaliacoes.entries()).map(([id, avs]) => ({ id, media: avs.reduce((a, b) => a + b.nota, 0) / avs.length, total: avs.length })).sort((a, b) => b.media - a.media).slice(0, 10);
-        if (ranking.length === 0) return message.reply('📋 Nenhuma avaliação.');
+    if (cmd === 'ranking') {
+        const rank = Array.from(avaliacoes.entries()).map(([id, list]) => ({ id, media: list.reduce((a,b)=>a+b.nota,0)/list.length, total: list.length })).sort((a,b)=>b.media - a.media).slice(0,10);
+        if (!rank.length) return msg.reply('📋 Nenhuma avaliação');
         let desc = '';
-        for (let i = 0; i < ranking.length; i++) {
-            let m = await message.guild.members.fetch(ranking[i].id).catch(() => null);
-            desc += `**${i+1}.** ${m ? m.user.tag : ranking[i].id} - ${ranking[i].media.toFixed(1)}/10 (${ranking[i].total} avs)\n`;
+        for (let i=0;i<rank.length;i++) {
+            const memb = await msg.guild.members.fetch(rank[i].id).catch(()=>null);
+            desc += `**${i+1}.** ${memb ? memb.user.tag : rank[i].id} - ${rank[i].media.toFixed(1)}/10 (${rank[i].total})\n`;
         }
-        message.reply({ embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle('🏆 RANKING').setDescription(desc)] });
-        return;
+        return msg.reply({ embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle('🏆 RANKING').setDescription(desc)] });
     }
-    
-    // BAN
-    if (command === 'ban') {
-        if (!podeBan(member)) return message.reply('❌ Apenas Líder Administrativo pode banir!');
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione um usuário!');
+
+    if (!getNivel(m)) return msg.reply('❌ Sem permissão');
+    if (cmd === 'ban') {
+        if (!podeBan(m)) return msg.reply('❌ Apenas Líder');
+        const user = msg.mentions.users.first();
+        if (!user) return msg.reply('❌ Mencione');
         const reason = args.join(' ') || 'Sem motivo';
-        await message.guild.members.ban(user.id, { reason });
-        const embed = createLogEmbed('🔨 BANIMENTO', 0xFF0000, [
-            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: false },
-            { name: '🛡️ Responsável', value: executor, inline: true },
-            { name: '📝 Motivo', value: reason, inline: true }
-        ]);
-        await sendLog(message.guild, '📋・punição-discord', embed);
-        message.reply(`✅ ${user.tag} banido por ${executor}!`);
-        return;
+        await msg.guild.members.ban(user.id, { reason });
+        await sendLog(msg.guild, '📋・punição-discord', logEmbed('🔨 BAN', 0xFF0000, [{ name: '👤 Usuário', value: `${user.tag} (${user.id})` }, { name: '🛡️ Responsável', value: exec }, { name: '📝 Motivo', value: reason }]));
+        return msg.reply(`✅ ${user.tag} banido por ${exec}`);
     }
-    
-    // UNBAN
-    if (command === 'unban') {
-        if (!podeUnban(member)) return message.reply('❌ Apenas Líder Administrativo pode desbanir!');
+    if (cmd === 'unban') {
+        if (!podeUnban(m)) return msg.reply('❌ Apenas Líder');
         const id = args[0];
-        if (!id) return message.reply('❌ Informe o ID!');
+        if (!id) return msg.reply('❌ ID');
         const motivo = args.slice(1).join(' ') || 'Sem motivo';
         try {
-            await message.guild.members.unban(id);
-            const embed = createLogEmbed('✅ DESBANIMENTO', 0x00FF00, [
-                { name: '🆔 Usuário', value: id, inline: false },
-                { name: '🛡️ Responsável', value: executor, inline: true },
-                { name: '📝 Motivo', value: motivo, inline: true }
-            ]);
-            await sendLog(message.guild, '📋・punição-discord', embed);
-            message.reply(`✅ Usuário ${id} desbanido por ${executor}!`);
-        } catch { message.reply('❌ ID inválido!'); }
+            await msg.guild.members.unban(id);
+            await sendLog(msg.guild, '📋・punição-discord', logEmbed('✅ DESBAN', 0x00FF00, [{ name: '🆔 Usuário', value: id }, { name: '🛡️ Responsável', value: exec }, { name: '📝 Motivo', value: motivo }]));
+            msg.reply(`✅ ${id} desbanido por ${exec}`);
+        } catch { msg.reply('❌ ID inválido'); }
         return;
     }
-    
-    // BANLIST
-    if (command === 'banlist') {
-        if (!podeBan(member)) return message.reply('❌ Sem permissão!');
-        const bans = await message.guild.bans.fetch();
-        if (bans.size === 0) return message.reply('📋 Nenhum banido.');
+    if (cmd === 'banlist') {
+        if (!podeBan(m)) return msg.reply('❌ Sem permissão');
+        const bans = await msg.guild.bans.fetch();
+        if (!bans.size) return msg.reply('📋 Nenhum banido');
         const lista = bans.map(ban => `🔨 ${ban.user.tag} (${ban.user.id}) - ${ban.reason || 'Sem motivo'}`).join('\n');
-        message.reply({ embeds: [new EmbedBuilder().setColor(0xFF0000).setTitle('📋 BANIDOS').setDescription(lista.substring(0, 4000))] });
-        return;
+        return msg.reply({ embeds: [new EmbedBuilder().setColor(0xFF0000).setTitle('📋 BANIDOS').setDescription(lista.substring(0, 4000))] });
     }
-    
-    // MUTE
-    if (command === 'mute') {
-        if (!podeMute(member)) return message.reply('❌ Sem permissão!');
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione um usuário!');
-        const time = parseInt(args[1]);
-        if (isNaN(time)) return message.reply('❌ Informe minutos!');
+    if (cmd === 'mute') {
+        if (!podeMute(m)) return msg.reply('❌ Sem permissão');
+        const user = msg.mentions.users.first();
+        if (!user) return msg.reply('❌ Mencione');
+        const tempo = parseInt(args[1]);
+        if (isNaN(tempo)) return msg.reply('❌ Minutos?');
         const reason = args.slice(2).join(' ') || 'Sem motivo';
-        const target = await message.guild.members.fetch(user.id);
-        await target.timeout(time * 60 * 1000, reason);
-        const embed = createLogEmbed('🔇 MUTE', 0xFFA500, [
-            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: false },
-            { name: '🛡️ Responsável', value: executor, inline: true },
-            { name: '⏱️ Tempo', value: `${time} minutos`, inline: true },
-            { name: '📝 Motivo', value: reason, inline: true }
-        ]);
-        await sendLog(message.guild, '📋・punição-discord', embed);
-        message.reply(`✅ ${user.tag} mutado por ${time} min por ${executor}!`);
-        return;
+        const target = await msg.guild.members.fetch(user.id);
+        await target.timeout(tempo * 60 * 1000, reason);
+        await sendLog(msg.guild, '📋・punição-discord', logEmbed('🔇 MUTE', 0xFFA500, [{ name: '👤 Usuário', value: `${user.tag} (${user.id})` }, { name: '🛡️ Responsável', value: exec }, { name: '⏱️ Tempo', value: `${tempo} min` }, { name: '📝 Motivo', value: reason }]));
+        return msg.reply(`✅ ${user.tag} mutado ${tempo}min por ${exec}`);
     }
-    
-    // UNMUTE
-    if (command === 'unmute') {
-        if (!podeMute(member)) return message.reply('❌ Sem permissão!');
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione um usuário!');
+    if (cmd === 'unmute') {
+        if (!podeMute(m)) return msg.reply('❌ Sem permissão');
+        const user = msg.mentions.users.first();
+        if (!user) return msg.reply('❌ Mencione');
         const motivo = args.slice(1).join(' ') || 'Sem motivo';
-        const target = await message.guild.members.fetch(user.id);
+        const target = await msg.guild.members.fetch(user.id);
         await target.timeout(null);
-        const embed = createLogEmbed('🔊 DESMUTE', 0x00FF00, [
-            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: false },
-            { name: '🛡️ Responsável', value: executor, inline: true },
-            { name: '📝 Motivo', value: motivo, inline: true }
-        ]);
-        await sendLog(message.guild, '📋・punição-discord', embed);
-        message.reply(`✅ ${user.tag} desmutado por ${executor}!`);
-        return;
+        await sendLog(msg.guild, '📋・punição-discord', logEmbed('🔊 DESMUTE', 0x00FF00, [{ name: '👤 Usuário', value: `${user.tag} (${user.id})` }, { name: '🛡️ Responsável', value: exec }, { name: '📝 Motivo', value: motivo }]));
+        return msg.reply(`✅ ${user.tag} desmutado por ${exec}`);
     }
-    
-    // WARN
-    if (command === 'warn') {
-        if (!podeWarn(member)) return message.reply('❌ Sem permissão!');
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione um usuário!');
+    if (cmd === 'warn') {
+        if (!podeWarn(m)) return msg.reply('❌ Sem permissão');
+        const user = msg.mentions.users.first();
+        if (!user) return msg.reply('❌ Mencione');
         const reason = args.slice(1).join(' ') || 'Sem motivo';
         if (!warns.has(user.id)) warns.set(user.id, []);
-        warns.get(user.id).push({ reason, moderator: executor, date: new Date() });
-        const embed = createLogEmbed('⚠️ WARN', 0xFFA500, [
-            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: false },
-            { name: '🛡️ Responsável', value: executor, inline: true },
-            { name: '📝 Motivo', value: reason, inline: true },
-            { name: '📊 Total', value: `${warns.get(user.id).length}`, inline: true }
-        ]);
-        await sendLog(message.guild, '📋・punição-discord', embed);
-        message.reply(`✅ Warn aplicado em ${user.tag} por ${executor}! Total: ${warns.get(user.id).length}`);
-        return;
+        warns.get(user.id).push({ reason, moderator: exec, date: new Date() });
+        await sendLog(msg.guild, '📋・punição-discord', logEmbed('⚠️ WARN', 0xFFA500, [{ name: '👤 Usuário', value: `${user.tag} (${user.id})` }, { name: '🛡️ Responsável', value: exec }, { name: '📝 Motivo', value: reason }, { name: '📊 Total', value: `${warns.get(user.id).length}` }]));
+        return msg.reply(`✅ Warn em ${user.tag} por ${exec} | Total: ${warns.get(user.id).length}`);
     }
-    
-    // WARNS
-    if (command === 'warns') {
-        if (!podeWarn(member)) return message.reply('❌ Sem permissão!');
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione um usuário!');
-        const userWarns = warns.get(user.id);
-        if (!userWarns || userWarns.length === 0) return message.reply(`📋 ${user.tag} não tem warns.`);
-        const lista = userWarns.map((w, i) => `${i+1} - ${w.reason} (por ${w.moderator} em ${new Date(w.date).toLocaleString('pt-BR')})`).join('\n');
-        message.reply({ embeds: [new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(lista)] });
-        return;
+    if (cmd === 'warns') {
+        if (!podeWarn(m)) return msg.reply('❌ Sem permissão');
+        const user = msg.mentions.users.first();
+        if (!user) return msg.reply('❌ Mencione');
+        const list = warns.get(user.id);
+        if (!list || !list.length) return msg.reply(`📋 ${user.tag} sem warns`);
+        const desc = list.map((w,i)=>`${i+1} - ${w.reason} (por ${w.moderator})`).join('\n');
+        return msg.reply({ embeds: [new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(desc)] });
     }
-    
-    // ADV1
-    if (command === 'adv1') {
-        if (!podeAdv1(member)) return message.reply('❌ Apenas Supervisor+ pode dar ADV1!');
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione um usuário!');
+    if (cmd === 'adv1') {
+        if (!podeAdv1(m)) return msg.reply('❌ Apenas Supervisor+');
+        const user = msg.mentions.users.first();
+        if (!user) return msg.reply('❌ Mencione');
         const motivo = args.slice(1).join(' ') || 'Sem motivo';
-        const role = message.guild.roles.cache.find(r => r.name === 'ADV STAFF 1');
-        if (!role) return message.reply('❌ Cargo ADV STAFF 1 não existe!');
-        const target = await message.guild.members.fetch(user.id);
+        const role = msg.guild.roles.cache.find(r => r.name === 'ADV STAFF 1');
+        if (!role) return msg.reply('❌ Cargo ADV STAFF 1 não existe');
+        const target = await msg.guild.members.fetch(user.id);
         await target.roles.add(role);
-        const embed = createLogEmbed('🏷️ ADV STAFF 1', 0x00FF00, [
-            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: false },
-            { name: '🛡️ Responsável', value: executor, inline: true },
-            { name: '📝 Motivo', value: motivo, inline: true }
-        ]);
-        await sendLog(message.guild, '📋・punição-discord', embed);
-        message.reply(`✅ ADV STAFF 1 dado a ${user.tag} por ${executor}!`);
-        return;
+        await sendLog(msg.guild, '📋・punição-discord', logEmbed('🏷️ ADV STAFF 1', 0x00FF00, [{ name: '👤 Usuário', value: `${user.tag} (${user.id})` }, { name: '🛡️ Responsável', value: exec }, { name: '📝 Motivo', value: motivo }]));
+        return msg.reply(`✅ ADV1 dado a ${user.tag} por ${exec}`);
     }
-    
-    // ADV2
-    if (command === 'adv2') {
-        if (!podeAdv2(member)) return message.reply('❌ Apenas Coordenador+ pode dar ADV2!');
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione um usuário!');
+    if (cmd === 'adv2') {
+        if (!podeAdv2(m)) return msg.reply('❌ Apenas Coordenador+');
+        const user = msg.mentions.users.first();
+        if (!user) return msg.reply('❌ Mencione');
         const motivo = args.slice(1).join(' ') || 'Sem motivo';
-        const role = message.guild.roles.cache.find(r => r.name === 'ADV STAFF 2');
-        if (!role) return message.reply('❌ Cargo ADV STAFF 2 não existe!');
-        const target = await message.guild.members.fetch(user.id);
+        const role = msg.guild.roles.cache.find(r => r.name === 'ADV STAFF 2');
+        if (!role) return msg.reply('❌ Cargo ADV STAFF 2 não existe');
+        const target = await msg.guild.members.fetch(user.id);
         await target.roles.add(role);
-        const embed = createLogEmbed('🏷️ ADV STAFF 2', 0x00FF00, [
-            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: false },
-            { name: '🛡️ Responsável', value: executor, inline: true },
-            { name: '📝 Motivo', value: motivo, inline: true }
-        ]);
-        await sendLog(message.guild, '📋・punição-discord', embed);
-        message.reply(`✅ ADV STAFF 2 dado a ${user.tag} por ${executor}!`);
-        return;
+        await sendLog(msg.guild, '📋・punição-discord', logEmbed('🏷️ ADV STAFF 2', 0x00FF00, [{ name: '👤 Usuário', value: `${user.tag} (${user.id})` }, { name: '🛡️ Responsável', value: exec }, { name: '📝 Motivo', value: motivo }]));
+        return msg.reply(`✅ ADV2 dado a ${user.tag} por ${exec}`);
     }
-    
-    // ADV3
-    if (command === 'adv3') {
-        if (!podeAdv3(member)) return message.reply('❌ Apenas Líder Administrativo pode dar ADV3!');
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione um usuário!');
+    if (cmd === 'adv3') {
+        if (!podeAdv3(m)) return msg.reply('❌ Apenas Líder');
+        const user = msg.mentions.users.first();
+        if (!user) return msg.reply('❌ Mencione');
         const motivo = args.slice(1).join(' ') || 'Sem motivo';
-        const role = message.guild.roles.cache.find(r => r.name === 'ADV STAFF 3');
-        if (!role) return message.reply('❌ Cargo ADV STAFF 3 não existe!');
-        const target = await message.guild.members.fetch(user.id);
+        const role = msg.guild.roles.cache.find(r => r.name === 'ADV STAFF 3');
+        if (!role) return msg.reply('❌ Cargo ADV STAFF 3 não existe');
+        const target = await msg.guild.members.fetch(user.id);
         await target.roles.add(role);
-        const embed = createLogEmbed('🏷️ ADV STAFF 3', 0x00FF00, [
-            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: false },
-            { name: '🛡️ Responsável', value: executor, inline: true },
-            { name: '📝 Motivo', value: motivo, inline: true }
-        ]);
-        await sendLog(message.guild, '📋・punição-discord', embed);
-        message.reply(`✅ ADV STAFF 3 dado a ${user.tag} por ${executor}!`);
-        return;
+        await sendLog(msg.guild, '📋・punição-discord', logEmbed('🏷️ ADV STAFF 3', 0x00FF00, [{ name: '👤 Usuário', value: `${user.tag} (${user.id})` }, { name: '🛡️ Responsável', value: exec }, { name: '📝 Motivo', value: motivo }]));
+        return msg.reply(`✅ ADV3 dado a ${user.tag} por ${exec}`);
     }
-    
-    // AJUDA
-    if (command === 'ajuda') {
-        const embed = new EmbedBuilder()
-            .setColor(0x0099FF)
-            .setTitle('📚 Atlas RP - Comandos')
-            .setDescription(`Prefixo: ${PREFIX} | Slash: /`)
-            .addFields(
-                { name: '👑 Líder', value: '`ban`, `unban`, `adv3`', inline: true },
-                { name: '⭐ Coordenador', value: '`adv2`, `mute`, `unmute`, `warn`', inline: true },
-                { name: '🛡️ Supervisor', value: '`adv1`, `mute`, `unmute`, `warn`', inline: true },
-                { name: '🔧 Admin', value: '`mute`, `unmute`, `warn`', inline: true },
-                { name: '⭐ Todos', value: '`avaliar`, `media`, `ranking`', inline: true }
-            );
-        message.reply({ embeds: [embed] });
-        return;
+    if (cmd === 'ajuda') {
+        const e = new EmbedBuilder().setColor(0x0099FF).setTitle('📚 Comandos').addFields(
+            { name: '👑 Líder', value: '`ban`, `unban`, `adv3`', inline: true },
+            { name: '⭐ Coordenador', value: '`adv2`, `mute`, `unmute`, `warn`', inline: true },
+            { name: '🛡️ Supervisor', value: '`adv1`, `mute`, `unmute`, `warn`', inline: true },
+            { name: '🔧 Admin', value: '`mute`, `unmute`, `warn`', inline: true },
+            { name: '⭐ Todos', value: '`avaliar`, `media`, `ranking`', inline: true }
+        );
+        return msg.reply({ embeds: [e] });
     }
 });
 
-// MODAL DE AVALIAÇÃO
-client.on(Events.InteractionCreate, async (interaction) => {
-    if (!interaction.isModalSubmit()) return;
-    if (interaction.customId === 'avaliarModal') {
-        const staffNome = interaction.fields.getTextInputValue('staff');
-        const nota = parseInt(interaction.fields.getTextInputValue('nota'));
-        const motivo = interaction.fields.getTextInputValue('motivo');
-        
-        if (isNaN(nota) || nota < 1 || nota > 10) return interaction.reply({ content: '❌ Nota inválida! Use 1 a 10.', ephemeral: true });
-        
-        const canal = interaction.guild.channels.cache.find(c => c.name === 'avaliações-staffs');
-        if (!canal) return interaction.reply({ content: '❌ Canal #avaliações-staffs não encontrado!', ephemeral: true });
-        
-        const staffId = staffNome.match(/\d+/g);
-        let staffUser = null;
-        if (staffId) try { staffUser = await interaction.guild.members.fetch(staffId[0]); } catch(e) {}
-        
-        const key = staffId ? staffId[0] : staffNome;
+// MODAL
+client.on(Events.InteractionCreate, async i => {
+    if (i.isModalSubmit() && i.customId === 'avaliarModal') {
+        const staffNome = i.fields.getTextInputValue('staff');
+        const nota = parseInt(i.fields.getTextInputValue('nota'));
+        const motivo = i.fields.getTextInputValue('motivo');
+        if (isNaN(nota) || nota < 1 || nota > 10) return i.reply({ content: '❌ Nota 1-10', ephemeral: true });
+        const canal = i.guild.channels.cache.find(c => c.name === 'avaliações-staffs');
+        if (!canal) return i.reply({ content: '❌ Canal #avaliações-staffs não encontrado', ephemeral: true });
+        const idMatch = staffNome.match(/\d+/g);
+        let membro = null;
+        if (idMatch) try { membro = await i.guild.members.fetch(idMatch[0]); } catch(e) {}
+        const key = idMatch ? idMatch[0] : staffNome;
         if (!avaliacoes.has(key)) avaliacoes.set(key, []);
-        avaliacoes.get(key).push({ nota, motivo, avaliador: interaction.user.tag, data: new Date() });
-        
-        const media = avaliacoes.get(key).reduce((a, b) => a + b.nota, 0) / avaliacoes.get(key).length;
-        
-        const embed = new EmbedBuilder()
-            .setColor(nota >= 7 ? 0x00FF00 : nota >= 4 ? 0xFFA500 : 0xFF0000)
-            .setTitle('⭐ NOVA AVALIAÇÃO')
+        avaliacoes.get(key).push({ nota, motivo, avaliador: i.user.tag, data: new Date() });
+        const media = avaliacoes.get(key).reduce((a,b)=>a+b.nota,0)/avaliacoes.get(key).length;
+        const embed = new EmbedBuilder().setColor(nota>=7?0x00FF00:nota>=4?0xFFA500:0xFF0000).setTitle('⭐ NOVA AVALIAÇÃO')
             .addFields(
-                { name: '👨‍✈️ Staff', value: staffUser ? `${staffUser}` : staffNome, inline: true },
-                { name: '👤 Avaliador', value: interaction.user.tag, inline: true },
+                { name: '👨‍✈️ Staff', value: membro ? `${membro}` : staffNome, inline: true },
+                { name: '👤 Avaliador', value: i.user.tag, inline: true },
                 { name: '⭐ Nota', value: `${nota}/10\n${barraNota(nota)}`, inline: false },
                 { name: '📝 Feedback', value: motivo, inline: false },
                 { name: '📊 Média', value: `${media.toFixed(1)}/10`, inline: true }
             ).setTimestamp();
-        
         await canal.send({ embeds: [embed] });
-        await interaction.reply({ content: '✅ Avaliação enviada!', ephemeral: true });
+        return i.reply({ content: '✅ Avaliação enviada!', ephemeral: true });
     }
-});
-
-// SLASH COMMANDS
-client.on(Events.InteractionCreate, async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
-    
-    const cmd = interaction.commandName;
-    const executor = interaction.user.tag;
-    const member = interaction.member;
-    
-    // Comandos para TODOS
+    if (!i.isChatInputCommand()) return;
+    const cmd = i.commandName;
+    const exec = i.user.tag;
+    const member = i.member;
     if (cmd === 'avaliar') {
         const modal = new ModalBuilder().setCustomId('avaliarModal').setTitle('⭐ Avaliar Staff');
-        modal.addComponents(
-            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('staff').setLabel('Staff (@ ou nome)').setStyle(TextInputStyle.Short).setRequired(true)),
-            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('nota').setLabel('Nota (1 a 10)').setStyle(TextInputStyle.Short).setRequired(true)),
-            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('motivo').setLabel('Feedback').setStyle(TextInputStyle.Paragraph).setRequired(true))
-        );
-        await interaction.showModal(modal);
-        return;
+        modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('staff').setLabel('Staff (@ ou nome)').setStyle(TextInputStyle.Short).setRequired(true)));
+        modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('nota').setLabel('Nota (1 a 10)').setStyle(TextInputStyle.Short).setRequired(true)));
+        modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('motivo').setLabel('Feedback').setStyle(TextInputStyle.Paragraph).setRequired(true)));
+        return i.showModal(modal);
     }
-    
     if (cmd === 'media') {
-        const staff = interaction.options.getMember('staff');
+        const staff = i.options.getMember('staff');
         const avs = avaliacoes.get(staff.id);
-        if (!avs || avs.length === 0) return interaction.reply({ content: `📋 ${staff} não tem avaliações.`, ephemeral: true });
-        const media = avs.reduce((a, b) => a + b.nota, 0) / avs.length;
-        const embed = new EmbedBuilder().setColor(0x00FF00).setTitle(`⭐ Média de ${staff.user.tag}`).setDescription(`${media.toFixed(1)}/10\n${barraNota(media)}\nTotal: ${avs.length} avaliações`);
-        interaction.reply({ embeds: [embed], ephemeral: true });
-        return;
+        if (!avs || !avs.length) return i.reply({ content: `📋 ${staff} sem avaliações`, ephemeral: true });
+        const media = avs.reduce((a,b)=>a+b.nota,0)/avs.length;
+        return i.reply({ embeds: [new EmbedBuilder().setColor(0x00FF00).setTitle(`⭐ Média de ${staff.user.tag}`).setDescription(`${media.toFixed(1)}/10\n${barraNota(media)}\nTotal: ${avs.length}`)], ephemeral: true });
     }
-    
     if (cmd === 'ranking') {
-        const ranking = Array.from(avaliacoes.entries()).map(([id, avs]) => ({ id, media: avs.reduce((a, b) => a + b.nota, 0) / avs.length, total: avs.length })).sort((a, b) => b.media - a.media).slice(0, 10);
-        if (ranking.length === 0) return interaction.reply({ content: '📋 Nenhuma avaliação.', ephemeral: true });
+        const rank = Array.from(avaliacoes.entries()).map(([id, list]) => ({ id, media: list.reduce((a,b)=>a+b.nota,0)/list.length, total: list.length })).sort((a,b)=>b.media - a.media).slice(0,10);
+        if (!rank.length) return i.reply({ content: '📋 Nenhuma avaliação', ephemeral: true });
         let desc = '';
-        for (let i = 0; i < ranking.length; i++) {
-            let m = await interaction.guild.members.fetch(ranking[i].id).catch(() => null);
-            desc += `**${i+1}.** ${m ? m.user.tag : ranking[i].id} - ${ranking[i].media.toFixed(1)}/10 (${ranking[i].total} avs)\n`;
+        for (let r of rank) {
+            const memb = await i.guild.members.fetch(r.id).catch(()=>null);
+            desc += `**${rank.indexOf(r)+1}.** ${memb ? memb.user.tag : r.id} - ${r.media.toFixed(1)}/10 (${r.total})\n`;
         }
-        interaction.reply({ embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle('🏆 RANKING').setDescription(desc)], ephemeral: true });
-        return;
+        return i.reply({ embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle('🏆 RANKING').setDescription(desc)], ephemeral: true });
     }
-    
-    // BAN
+    if (!getNivel(member)) return i.reply({ content: '❌ Sem permissão', ephemeral: true });
     if (cmd === 'ban') {
-        if (!podeBan(member)) return interaction.reply({ content: '❌ Apenas Líder Administrativo pode banir!', ephemeral: true });
-        const user = interaction.options.getUser('usuario');
-        const motivo = interaction.options.getString('motivo');
-        await interaction.guild.members.ban(user.id, { reason: motivo });
-        const embed = createLogEmbed('🔨 BANIMENTO', 0xFF0000, [
-            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: false },
-            { name: '🛡️ Responsável', value: executor, inline: true },
-            { name: '📝 Motivo', value: motivo, inline: true }
-        ]);
-        await sendLog(interaction.guild, '📋・punição-discord', embed);
-        interaction.reply({ content: `✅ ${user.tag} banido por ${executor}!`, ephemeral: true });
-        return;
+        if (!podeBan(member)) return i.reply({ content: '❌ Apenas Líder', ephemeral: true });
+        const user = i.options.getUser('usuario');
+        const motivo = i.options.getString('motivo');
+        await i.guild.members.ban(user.id, { reason: motivo });
+        await sendLog(i.guild, '📋・punição-discord', logEmbed('🔨 BAN', 0xFF0000, [{ name: '👤 Usuário', value: `${user.tag} (${user.id})` }, { name: '🛡️ Responsável', value: exec }, { name: '📝 Motivo', value: motivo }]));
+        return i.reply({ content: `✅ ${user.tag} banido por ${exec}`, ephemeral: true });
     }
-    
-    // UNBAN
     if (cmd === 'unban') {
-        if (!podeUnban(member)) return interaction.reply({ content: '❌ Apenas Líder Administrativo pode desbanir!', ephemeral: true });
-        const id = interaction.options.getString('id');
-        const motivo = interaction.options.getString('motivo');
+        if (!podeUnban(member)) return i.reply({ content: '❌ Apenas Líder', ephemeral: true });
+        const id = i.options.getString('id');
+        const motivo = i.options.getString('motivo');
         try {
-            await interaction.guild.members.unban(id);
-            const embed = createLogEmbed('✅ DESBANIMENTO', 0x00FF00, [
-                { name: '🆔 Usuário', value: id, inline: false },
-                { name: '🛡️ Responsável', value: executor, inline: true },
-                { name: '📝 Motivo', value: motivo, inline: true }
-            ]);
-            await sendLog(interaction.guild, '📋・punição-discord', embed);
-            interaction.reply({ content: `✅ Usuário ${id} desbanido por ${executor}!`, ephemeral: true });
-        } catch { interaction.reply({ content: '❌ ID inválido!', ephemeral: true }); }
+            await i.guild.members.unban(id);
+            await sendLog(i.guild, '📋・punição-discord', logEmbed('✅ DESBAN', 0x00FF00, [{ name: '🆔 Usuário', value: id }, { name: '🛡️ Responsável', value: exec }, { name: '📝 Motivo', value: motivo }]));
+            i.reply({ content: `✅ ${id} desbanido por ${exec}`, ephemeral: true });
+        } catch { i.reply({ content: '❌ ID inválido', ephemeral: true }); }
         return;
     }
-    
-    // BANLIST
     if (cmd === 'banlist') {
-        if (!podeBan(member)) return interaction.reply({ content: '❌ Sem permissão!', ephemeral: true });
-        const bans = await interaction.guild.bans.fetch();
-        if (bans.size === 0) return interaction.reply({ content: '📋 Nenhum banido.', ephemeral: true });
+        if (!podeBan(member)) return i.reply({ content: '❌ Sem permissão', ephemeral: true });
+        const bans = await i.guild.bans.fetch();
+        if (!bans.size) return i.reply({ content: '📋 Nenhum banido', ephemeral: true });
         const lista = bans.map(ban => `🔨 ${ban.user.tag} (${ban.user.id}) - ${ban.reason || 'Sem motivo'}`).join('\n');
-        interaction.reply({ embeds: [new EmbedBuilder().setColor(0xFF0000).setTitle('📋 BANIDOS').setDescription(lista.substring(0, 4000))], ephemeral: true });
-        return;
+        return i.reply({ embeds: [new EmbedBuilder().setColor(0xFF0000).setTitle('📋 BANIDOS').setDescription(lista.substring(0, 4000))], ephemeral: true });
     }
-    
-    // MUTE
     if (cmd === 'mute') {
-        if (!podeMute(member)) return interaction.reply({ content: '❌ Sem permissão!', ephemeral: true });
-        const user = interaction.options.getUser('usuario');
-        const tempo = interaction.options.getInteger('tempo');
-        const motivo = interaction.options.getString('motivo');
-        const target = await interaction.guild.members.fetch(user.id);
+        if (!podeMute(member)) return i.reply({ content: '❌ Sem permissão', ephemeral: true });
+        const user = i.options.getUser('usuario');
+        const tempo = i.options.getInteger('tempo');
+        const motivo = i.options.getString('motivo');
+        const target = await i.guild.members.fetch(user.id);
         await target.timeout(tempo * 60 * 1000, motivo);
-        const embed = createLogEmbed('🔇 MUTE', 0xFFA500, [
-            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: false },
-            { name: '🛡️ Responsável', value: executor, inline: true },
-            { name: '⏱️ Tempo', value: `${tempo} minutos`, inline: true },
-            { name: '📝 Motivo', value: motivo, inline: true }
-        ]);
-        await sendLog(interaction.guild, '📋・punição-discord', embed);
-        interaction.reply({ content: `✅ ${user.tag} mutado por ${tempo} min por ${executor}!`, ephemeral: true });
-        return;
+        await sendLog(i.guild, '📋・punição-discord', logEmbed('🔇 MUTE', 0xFFA500, [{ name: '👤 Usuário', value: `${user.tag} (${user.id})` }, { name: '🛡️ Responsável', value: exec }, { name: '⏱️ Tempo', value: `${tempo} min` }, { name: '📝 Motivo', value: motivo }]));
+        return i.reply({ content: `✅ ${user.tag} mutado ${tempo}min por ${exec}`, ephemeral: true });
     }
-    
-    // UNMUTE
     if (cmd === 'unmute') {
-        if (!podeMute(member)) return interaction.reply({ content: '❌ Sem permissão!', ephemeral: true });
-        const user = interaction.options.getUser('usuario');
-        const motivo = interaction.options.getString('motivo');
-        const target = await interaction.guild.members.fetch(user.id);
+        if (!podeMute(member)) return i.reply({ content: '❌ Sem permissão', ephemeral: true });
+        const user = i.options.getUser('usuario');
+        const motivo = i.options.getString('motivo');
+        const target = await i.guild.members.fetch(user.id);
         await target.timeout(null);
-        const embed = createLogEmbed('🔊 DESMUTE', 0x00FF00, [
-            { name: '👤 Usuário', value: `${user.tag} (${user
+        await sendLog(i.guild, '📋・punição-discord', logEmbed('🔊 DESMUTE', 0x00FF00, [{ name: '👤 Usuário', value: `${user.tag} (${user.id})` }, { name: '🛡️ Responsável', value: exec }, { name: '📝 Motivo', value: motivo }]));
+        return i.reply({ content: `✅ ${user.tag} desmutado por ${exec}`, ephemeral: true });
+    }
+    if (cmd === 'warn') {
+        if (!podeWarn(member)) return i.reply({ content: '❌ Sem permissão', ephemeral: true });
+        const user = i.options.getUser('usuario');
+        const motivo = i.options.getString('motivo');
+        if (!warns.has(user.id)) warns.set(user.id, []);
+        warns.get(user.id).push({ reason: motivo, moderator: exec, date: new Date() });
+        await sendLog(i.guild, '📋・punição-discord', logEmbed('⚠️ WARN', 0xFFA500, [{ name: '👤 Usuário', value: `${user.tag} (${user.id})` }, { name: '🛡️ Responsável', value: exec }, { name: '📝 Motivo', value: motivo }, { name: '📊 Total', value: `${warns.get(user.id).length}` }]));
+        return i.reply({ content: `✅ Warn em ${user.tag} por ${exec} | Total: ${warns.get(user.id).length}`, ephemeral: true });
+    }
+    if (cmd === 'warns') {
+        if (!podeWarn(member)) return i.reply({ content: '❌ Sem permissão', ephemeral: true });
+        const user = i.options.getUser('usuario');
+        const list = warns.get(user.id);
+        if (!list || !list.length) return i.reply({ content: `📋 ${user.tag} sem warns`, ephemeral: true });
+        const desc = list.map((w,idx)=>`${idx+1} - ${w.reason} (por ${w.moderator})`).join('\n');
+        return i.reply({ embeds: [new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(desc)], ephemeral: true });
+    }
+    if (cmd === 'adv1') {
+        if (!podeAdv1(member)) return i.reply({ content: '❌ Apenas Supervisor+', ephemeral: true });
+        const user = i.options.getUser('usuario');
+        const motivo = i.options.getString('motivo');
+        const role = i.guild.roles.cache.find(r => r.name === 'ADV STAFF 1');
+        if (!role) return i.reply({ content: '❌ Cargo ADV STAFF 1 não existe', ephemeral: true });
+        const target = await i.guild.members.fetch(user.id);
+        await target.roles.add(role);
+        await sendLog(i.guild, '📋・punição-discord', logEmbed('🏷️ ADV STAFF 1', 0x00FF00, [{ name: '👤 Usuário', value: `${user.tag} (${user.id})` }, { name: '🛡️ Responsável', value: exec }, { name: '📝 Motivo', value: motivo }]));
+        return i.reply({ content: `✅ ADV1 dado a ${user.tag} por ${exec}`, ephemeral: true });
+    }
+    if (cmd === 'adv2') {
+        if (!podeAdv2(member)) return i.reply({ content: '❌ Apenas Coordenador+', ephemeral: true });
+        const user = i.options.getUser('usuario');
+        const motivo = i.options.getString('motivo');
+        const role = i.guild.roles.cache.find(r => r.name === 'ADV STAFF 2');
+        if (!role) return i.reply({ content: '❌ Cargo ADV STAFF 2 não existe', ephemeral: true });
+        const target = await i.guild.members.fetch(user.id);
+        await target.roles.add(role);
+        await sendLog(i.guild, '📋・punição-discord', logEmbed('🏷️ ADV STAFF 2', 0x00FF00, [{ name: '👤 Usuário', value: `${user.tag} (${user.id})` }, { name: '🛡️ Responsável', value: exec }, { name: '📝 Motivo', value: motivo }]));
+        return i.reply({ content: `✅ ADV
