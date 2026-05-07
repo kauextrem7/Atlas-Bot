@@ -159,16 +159,16 @@ async function criarCanaisLog(guild) {
 // ==================== SLASH COMMANDS ====================
 const slashCommands = [
     { name: 'avaliar', description: '⭐ Avaliar staff (1-10) - Todos' },
-    { name: 'media', description: 'Média do staff', options: [{ name: 'staff', type: 6, required: true }] },
+    { name: 'media', description: 'Média do staff', options: [{ name: 'staff', type: 6, description: 'Staff a ser consultado', required: true }] },
     { name: 'ranking', description: 'Ranking dos staffs' },
     { name: 'ajuda', description: 'Comandos' },
-    { name: 'ban', description: 'Banir membro', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'unban', description: 'Desbanir', options: [{ name: 'id', type: 3, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'ban', description: 'Banir membro', options: [{ name: 'usuario', type: 6, description: 'Usuário a ser banido', required: true }, { name: 'motivo', type: 3, description: 'Motivo do banimento', required: true }] },
+    { name: 'unban', description: 'Desbanir', options: [{ name: 'id', type: 3, description: 'ID do usuário', required: true }, { name: 'motivo', type: 3, description: 'Motivo do desbanimento', required: true }] },
     { name: 'banlist', description: 'Lista de banidos' },
-    { name: 'mute', description: 'Mutar', options: [{ name: 'usuario', type: 6, required: true }, { name: 'tempo', type: 4, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'unmute', description: 'Desmutar', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'warn', description: 'Advertir', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'warns', description: 'Ver warns', options: [{ name: 'usuario', type: 6, required: true }] },
+    { name: 'mute', description: 'Mutar', options: [{ name: 'usuario', type: 6, description: 'Usuário a ser mutado', required: true }, { name: 'tempo', type: 4, description: 'Minutos', required: true }, { name: 'motivo', type: 3, description: 'Motivo do mute', required: true }] },
+    { name: 'unmute', description: 'Desmutar', options: [{ name: 'usuario', type: 6, description: 'Usuário a ser desmutado', required: true }, { name: 'motivo', type: 3, description: 'Motivo', required: true }] },
+    { name: 'warn', description: 'Advertir', options: [{ name: 'usuario', type: 6, description: 'Usuário a ser advertido', required: true }, { name: 'motivo', type: 3, description: 'Motivo da advertência', required: true }] },
+    { name: 'warns', description: 'Ver warns', options: [{ name: 'usuario', type: 6, description: 'Usuário', required: true }] },
     { name: 'adv', description: 'Atribuir cargo ADV STAFF (1,2,3)' },
     { name: 'promover', description: 'Promover membro da staff' },
     { name: 'rebaixar', description: 'Rebaixar membro da staff' },
@@ -233,7 +233,7 @@ async function enviarMensagemAvaliacao(guild) {
 
 client.once('ready', async () => {
     console.log(`✅ Bot ${client.user.tag} online!`);
-    client.user.setPresence({ activities: [{ name: 'Atlas RP | &ajuda', type: 0 }], status: 'online' });
+    client.user.setPresence({ activities: [{ name: 'Atlas RP | >ajuda', type: 0 }], status: 'online' });
     const guild = client.guilds.cache.get(process.env.GUILD_ID);
     if (guild) {
         await criarCanaisLog(guild);
@@ -246,7 +246,6 @@ client.once('ready', async () => {
 });
 
 // ==================== LOGS COMPLETOS ====================
-// Membros
 client.on('guildMemberAdd', async member => {
     const embed = createLogEmbed('📥 MEMBRO ENTROU', 0x00FF00, [
         { name: '👤 Membro', value: `${member.user.tag} (${member.id})`, inline: true },
@@ -266,7 +265,6 @@ client.on('guildMemberRemove', async member => {
     ], member.user.displayAvatarURL());
     await sendLog(member.guild, CANAL_MEMBROS, embed);
 });
-// Voz
 client.on('voiceStateUpdate', async (oldState, newState) => {
     const member = newState.member || oldState.member;
     if (!member || member.user.bot) return;
@@ -294,7 +292,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         await sendLog(member.guild, CANAL_MEMBROS, embed);
     }
 });
-// Apelidos
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
     if (oldMember.nickname !== newMember.nickname) {
         const embed = createLogEmbed('✏️ APELIDO ALTERADO', 0xFFA500, [
@@ -328,7 +325,6 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
         await sendLog(newMember.guild, CANAL_CARGOS, embed);
     }
 });
-// Canais
 client.on('channelCreate', async channel => {
     if (!channel.guild) return;
     const embed = createLogEmbed('📁 CANAL CRIADO', 0x00FF00, [{ name: '📌 Nome', value: channel.name, inline: true }]);
@@ -349,7 +345,6 @@ client.on('channelUpdate', async (oldChan, newChan) => {
         await sendLog(newChan.guild, CANAL_SERVIDOR, embed);
     }
 });
-// Mensagens
 client.on('messageDelete', async message => {
     if (!message.guild || message.author?.bot) return;
     const embed = createLogEmbed('🗑️ MENSAGEM DELETADA', 0xFF0000, [
@@ -370,7 +365,6 @@ client.on('messageUpdate', async (oldMsg, newMsg) => {
     ], oldMsg.author?.displayAvatarURL());
     await sendLog(oldMsg.guild, CANAL_MENSAGENS, embed);
 });
-// Reações
 client.on('messageReactionAdd', async (reaction, user) => {
     if (user.bot) return;
     const embed = createLogEmbed('⭐ REAÇÃO ADICIONADA', 0x00FF00, [
@@ -389,13 +383,11 @@ client.on('messageReactionRemove', async (reaction, user) => {
     ], user.displayAvatarURL());
     await sendLog(reaction.message.guild, CANAL_REACOES, embed);
 });
-// Webhooks
 client.on('webhookUpdate', async channel => {
     if (!channel.guild) return;
     const embed = createLogEmbed('🔗 WEBHOOK ATUALIZADO', 0xFFA500, [{ name: '📍 Canal', value: `<#${channel.id}>`, inline: true }]);
     await sendLog(channel.guild, CANAL_WEBHOOKS, embed);
 });
-// Boosts
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
     if (!oldMember.premiumSince && newMember.premiumSince) {
         const embed = createLogEmbed('💪 BOOST DO SERVIDOR', 0xFF69B4, [
@@ -405,7 +397,6 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
         await sendLog(newMember.guild, CANAL_BOOSTS, embed);
     }
 });
-// Servidor (nome, ícone)
 client.on('guildUpdate', async (oldGuild, newGuild) => {
     if (oldGuild.name !== newGuild.name) {
         const embed = createLogEmbed('📝 NOME DO SERVIDOR ALTERADO', 0xFFA500, [
@@ -419,7 +410,6 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
         await sendLog(newGuild, CANAL_SERVIDOR, embed);
     }
 });
-// Bans
 client.on('guildBanAdd', async ban => {
     const embed = createLogEmbed('🔨 USUÁRIO BANIDO', 0xFF0000, [
         { name: '👤 Usuário', value: `${ban.user.tag} (${ban.user.id})`, inline: true },
@@ -431,7 +421,6 @@ client.on('guildBanRemove', async ban => {
     const embed = createLogEmbed('✅ USUÁRIO DESBANIDO', 0x00FF00, [{ name: '👤 Usuário', value: `${ban.user.tag} (${ban.user.id})`, inline: true }], ban.user.displayAvatarURL());
     await sendLog(ban.guild, CANAL_PUNICOES, embed);
 });
-// Automod
 client.on('messageCreate', async msg => {
     if (msg.author.bot) return;
     const lower = msg.content.toLowerCase();
@@ -449,10 +438,10 @@ client.on('messageCreate', async msg => {
     }
 });
 
-// ==================== COMANDOS DE PREFIXO (&) ====================
+// ==================== COMANDOS DE PREFIXO (>) ====================
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
-    if (!message.content.startsWith('&')) return;
+    if (!message.content.startsWith('>')) return;
     const args = message.content.slice(1).trim().split(/ +/);
     const cmd = args.shift().toLowerCase();
     const member = message.member;
@@ -576,7 +565,7 @@ client.on('messageCreate', async message => {
     }
     if (cmd === 'ajuda') {
         const embed = new EmbedBuilder().setColor(0x0099FF).setTitle('📚 Atlas RP - Comandos')
-            .setDescription(`Prefixo **&** | Slash **/**`)
+            .setDescription(`Prefixo **>** | Slash **/**`)
             .addFields(
                 { name: '👑 Líder/Desenvolvedor', value: '`ban`, `unban`, `demitir`', inline: true },
                 { name: '⭐ Coordenador', value: '`mute`, `unmute`, `warn`, `promover`, `rebaixar`', inline: true },
@@ -590,7 +579,7 @@ client.on('messageCreate', async message => {
 
 // ==================== INTERAÇÕES (SLASH, MODAIS, DROPDOWN) ====================
 client.on('interactionCreate', async interaction => {
-    // Modal de avaliação – cooldown aqui
+    // MODAL DE AVALIAÇÃO (cooldown aplicado aqui)
     if (interaction.isModalSubmit() && interaction.customId === 'avaliarModal') {
         const now = Date.now();
         const last = cooldownAvaliacao.get(interaction.user.id);
@@ -624,6 +613,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: '✅ Avaliação enviada!', ephemeral: true });
     }
 
+    // SLASH COMMANDS
     if (!interaction.isChatInputCommand()) return;
     const cmd = interaction.commandName;
     const member = interaction.member;
@@ -659,10 +649,10 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Verificar permissão (staff)
+    // Verificar se é staff
     if (getNivel(member) === 0) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
 
-    // Comandos de moderação
+    // Comandos de moderação via slash
     if (cmd === 'ban' && podeBan(member)) {
         const user = interaction.options.getUser('usuario');
         const motivo = interaction.options.getString('motivo');
@@ -743,7 +733,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Comandos avançados com modal
+    // Comandos avançados (modal)
     if (cmd === 'promover') {
         if (!podePromover(member, { id: 'dummy' })) return interaction.reply({ content: '❌ Você não pode promover.', ephemeral: true });
         const modal = new ModalBuilder().setCustomId('promoverModal').setTitle('Promover Staff');
@@ -825,7 +815,7 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// Modais de todos os comandos de staff
+// Modais de staff (promover, rebaixar, demitir, etc.)
 client.on('interactionCreate', async interaction => {
     if (!interaction.isModalSubmit()) return;
     const modalId = interaction.customId;
