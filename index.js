@@ -1,3 +1,8 @@
+// ==================================================
+// CÓDIGO COMPLETO – BOT ATLAS RP
+// Versão final – 1500+ linhas
+// ==================================================
+
 const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, Events, REST, Routes, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ChannelType, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
 require('dotenv').config();
 const express = require('express');
@@ -42,7 +47,7 @@ const canaisLog = [
     { nome: CANAL_BOOSTS, desc: 'Boosts do servidor' }
 ];
 
-// ==================== HIERARQUIA ====================
+// ==================== HIERARQUIA DE CARGOS ====================
 const CARGOS_LEVEL = {
     'Staff': 1,
     'Estagiário(a)': 2,
@@ -75,21 +80,23 @@ function getNivel(member) {
     return 0;
 }
 
+// PERMISSÕES (ajustadas: Administrador nível 5 pode promover, rebaixar, dar ADV1, advertir staff)
 const podeBan = m => getNivel(m) >= 8;
 const podeUnban = m => getNivel(m) >= 8;
 const podeMute = m => getNivel(m) >= 1;
 const podeWarn = m => getNivel(m) >= 1;
-const podeAdv1 = m => getNivel(m) >= 6;
+const podeAdv1 = m => getNivel(m) >= 5;
 const podeAdv2 = m => getNivel(m) >= 7;
 const podeAdv3 = m => getNivel(m) >= 8;
-const podeAdvertirStaff = m => getNivel(m) >= 6;
+const podeAdvertirStaff = m => getNivel(m) >= 5;
 const podeDemitir = m => getNivel(m) >= 8;
-const podeTirarCooldown = m => getNivel(m) >= 6;
+const podeTirarCooldown = m => getNivel(m) >= 5;
 
 function podePromover(executor, alvo) {
     const nivelExec = getNivel(executor);
     const nivelAlvo = getNivel(alvo);
     if (nivelExec === 0 || nivelAlvo === 0) return false;
+    if (nivelExec < 5) return false;
     if (nivelAlvo >= nivelExec) return false;
     if (nivelAlvo >= 9) return false;
     return true;
@@ -98,14 +105,17 @@ function podeRebaixar(executor, alvo) {
     const nivelExec = getNivel(executor);
     const nivelAlvo = getNivel(alvo);
     if (nivelExec === 0 || nivelAlvo === 0) return false;
+    if (nivelExec < 5) return false;
     if (nivelAlvo >= nivelExec) return false;
     if (nivelAlvo <= 1) return false;
     return true;
 }
 
+// ==================== COOLDOWN ====================
 const cooldownAvaliacao = new Map();
 const COOLDOWN_TIME = 15 * 60 * 1000;
 
+// ==================== FUNÇÕES GLOBAIS ====================
 async function sendLog(guild, channelName, embed) {
     const channel = guild.channels.cache.find(c => c.name === channelName && c.isTextBased());
     if (channel) await channel.send({ embeds: [embed] }).catch(() => {});
@@ -155,6 +165,7 @@ async function criarCanaisLog(guild) {
     }
 }
 
+// ==================== SLASH COMMANDS ====================
 const slashCommands = [
     { name: 'avaliar', description: '⭐ Avaliar staff (1-10) - Todos' },
     { name: 'media', description: 'Média do staff', options: [{ name: 'staff', type: 6, description: 'Staff a ser consultado', required: true }] },
@@ -568,14 +579,14 @@ client.on('messageCreate', async message => {
                 { name: '👑 Líder/Desenvolvedor', value: '`ban`, `unban`, `demitir`', inline: true },
                 { name: '⭐ Coordenador', value: '`mute`, `unmute`, `warn`, `promover`, `rebaixar`', inline: true },
                 { name: '🛡️ Supervisor', value: '`mute`, `unmute`, `warn`, `advertir-staff`', inline: true },
-                { name: '🔧 Admin', value: '`mute`, `unmute`, `warn`', inline: true },
+                { name: '🔧 Admin', value: '`mute`, `unmute`, `warn`, `promover`, `rebaixar`, `adv1`', inline: true },
                 { name: '⭐ Todos', value: '`avaliar`, `media`, `ranking`', inline: true }
             );
         return message.reply({ embeds: [embed] });
     }
 });
 
-// ==================== INTERAÇÕES ====================
+// ==================== INTERAÇÕES (SLASH, MODAIS, DROPDOWN) ====================
 client.on('interactionCreate', async interaction => {
     // Modal de avaliação
     if (interaction.isModalSubmit() && interaction.customId === 'avaliarModal') {
@@ -616,11 +627,9 @@ client.on('interactionCreate', async interaction => {
     const member = interaction.member;
     const executor = interaction.user.tag;
 
-    if (!member) {
-        return interaction.reply({ content: '❌ Não foi possível identificar seu membro.', ephemeral: true });
-    }
+    if (!member) return interaction.reply({ content: '❌ Não foi possível identificar seu membro.', ephemeral: true });
 
-    // Públicos
+    // Comandos públicos
     if (cmd === 'avaliar') {
         const modal = new ModalBuilder().setCustomId('avaliarModal').setTitle('⭐ Avaliar Staff');
         modal.addComponents(
@@ -650,7 +659,9 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    if (getNivel(member) === 0) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
+    // Verifica se é staff (nível >=1)
+    const nivel = getNivel(member);
+    if (nivel === 0) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
 
     // Comandos de moderação
     if (cmd === 'ban' && podeBan(member)) {
@@ -733,7 +744,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Comandos avançados (modal)
+    // Comandos avançados (modal) – permissão baseada nas funções ajustadas
     if (cmd === 'promover') {
         if (!podePromover(member, { id: 'dummy' })) return interaction.reply({ content: '❌ Você não pode promover.', ephemeral: true });
         const modal = new ModalBuilder().setCustomId('promoverModal').setTitle('Promover Staff');
@@ -775,25 +786,26 @@ client.on('interactionCreate', async interaction => {
         );
         return interaction.showModal(modal);
     }
-    if (cmd === 'adv' && getNivel(member) >= 6) {
+    if (cmd === 'adv') {
+        if (getNivel(member) < 5) return interaction.reply({ content: '❌ Apenas Administrador+ pode atribuir ADV STAFF.', ephemeral: true });
         const select = new StringSelectMenuBuilder()
             .setCustomId('adv_select')
             .setPlaceholder('Selecione o cargo ADV')
-            .addOptions(
+            .addOptions([
                 new StringSelectMenuOptionBuilder().setLabel('ADV STAFF 1').setValue('adv1'),
-                new StringSelectMenuOptionBuilder().setLabel('ADV STAFF 2').setValue('adv2'),
-                new StringSelectMenuOptionBuilder().setLabel('ADV STAFF 3').setValue('adv3')
-            );
+                ...(getNivel(member) >= 7 ? [new StringSelectMenuOptionBuilder().setLabel('ADV STAFF 2').setValue('adv2')] : []),
+                ...(getNivel(member) >= 8 ? [new StringSelectMenuOptionBuilder().setLabel('ADV STAFF 3').setValue('adv3')] : [])
+            ]);
         const row = new ActionRowBuilder().addComponents(select);
         return interaction.reply({ content: 'Selecione o cargo:', components: [row], ephemeral: true });
     }
     if (cmd === 'ajuda') {
         const embed = new EmbedBuilder().setColor(0x0099FF).setTitle('📚 Slash Commands')
             .addFields(
-                { name: '👑 Líder/Desenvolvedor', value: '/ban, /unban, /demitir', inline: true },
-                { name: '⭐ Coordenador', value: '/mute, /unmute, /warn, /promover, /rebaixar', inline: true },
-                { name: '🛡️ Supervisor', value: '/mute, /unmute, /warn, /advertir-staff, /adv', inline: true },
-                { name: '🔧 Admin', value: '/mute, /unmute, /warn', inline: true },
+                { name: '👑 Líder/Desenvolvedor', value: '/ban, /unban, /demitir, /adv3', inline: true },
+                { name: '⭐ Coordenador', value: '/mute, /unmute, /warn, /promover, /rebaixar, /adv2', inline: true },
+                { name: '🛡️ Supervisor', value: '/mute, /unmute, /warn, /advertir-staff', inline: true },
+                { name: '🔧 Admin', value: '/mute, /unmute, /warn, /promover, /rebaixar, /adv1', inline: true },
                 { name: '⭐ Todos', value: '/avaliar, /media, /ranking', inline: true }
             );
         return interaction.reply({ embeds: [embed], ephemeral: true });
@@ -802,8 +814,7 @@ client.on('interactionCreate', async interaction => {
 
 // Dropdown ADV
 client.on('interactionCreate', async interaction => {
-    if (!interaction.isStringSelectMenu()) return;
-    if (interaction.customId === 'adv_select') {
+    if (interaction.isStringSelectMenu() && interaction.customId === 'adv_select') {
         const selected = interaction.values[0];
         const roleName = selected === 'adv1' ? 'ADV STAFF 1' : selected === 'adv2' ? 'ADV STAFF 2' : 'ADV STAFF 3';
         const modal = new ModalBuilder().setCustomId(`advModal_${selected}`).setTitle(`Atribuir ${roleName}`);
@@ -911,7 +922,7 @@ client.on('interactionCreate', async interaction => {
             }
         }
         if (modalId.startsWith('advModal_')) {
-            if (getNivel(member) < 6) return interaction.reply({ content: '❌ Apenas Supervisor+ pode atribuir ADV.', ephemeral: true });
+            if (getNivel(member) < 5) return interaction.reply({ content: '❌ Apenas Administrador+ pode atribuir ADV.', ephemeral: true });
             const selected = modalId.split('_')[1];
             const roleName = selected === 'adv1' ? 'ADV STAFF 1' : selected === 'adv2' ? 'ADV STAFF 2' : 'ADV STAFF 3';
             const role = interaction.guild.roles.cache.find(r => r.name === roleName);
