@@ -42,7 +42,7 @@ const canaisLog = [
     { nome: CANAL_BOOSTS, desc: 'Boosts do servidor' }
 ];
 
-// ==================== HIERARQUIA ====================
+// ==================== HIERARQUIA DE CARGOS ====================
 const CARGOS_LEVEL = {
     'Staff': 1,
     'Estagiário(a)': 2,
@@ -107,7 +107,7 @@ function podeRebaixar(executor, alvo) {
 const cooldownAvaliacao = new Map();
 const COOLDOWN_TIME = 15 * 60 * 1000;
 
-// ==================== FUNÇÕES GLOBAIS ====================
+// ==================== FUNÇÕES AUXILIARES ====================
 async function sendLog(guild, channelName, embed) {
     const channel = guild.channels.cache.find(c => c.name === channelName && c.isTextBased());
     if (channel) await channel.send({ embeds: [embed] }).catch(() => {});
@@ -156,28 +156,25 @@ async function criarCanaisLog(guild) {
     }
 }
 
-// ==================== SLASH COMMANDS ====================
+// ==================== SLASH COMMANDS (sem default_member_permissions) ====================
 const slashCommands = [
-    // Comandos públicos (todos veem)
     { name: 'avaliar', description: '⭐ Avaliar staff (1-10) - Todos' },
     { name: 'media', description: 'Média do staff', options: [{ name: 'staff', type: 6, required: true }] },
     { name: 'ranking', description: 'Ranking dos staffs' },
     { name: 'ajuda', description: 'Comandos' },
-
-    // Comandos de moderação (ocultos para quem não tem permissão)
-    { name: 'ban', description: 'Banir membro', default_member_permissions: 'BanMembers', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'unban', description: 'Desbanir', default_member_permissions: 'BanMembers', options: [{ name: 'id', type: 3, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'banlist', description: 'Lista de banidos', default_member_permissions: 'BanMembers' },
-    { name: 'mute', description: 'Mutar', default_member_permissions: 'ModerateMembers', options: [{ name: 'usuario', type: 6, required: true }, { name: 'tempo', type: 4, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'unmute', description: 'Desmutar', default_member_permissions: 'ModerateMembers', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'warn', description: 'Advertir', default_member_permissions: 'ModerateMembers', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
-    { name: 'warns', description: 'Ver warns', default_member_permissions: 'ModerateMembers', options: [{ name: 'usuario', type: 6, required: true }] },
-    { name: 'adv', description: 'Atribuir cargo ADV STAFF (1,2,3)', default_member_permissions: 'ModerateMembers' },
-    { name: 'promover', description: 'Promover membro da staff', default_member_permissions: 'ModerateMembers' },
-    { name: 'rebaixar', description: 'Rebaixar membro da staff', default_member_permissions: 'ModerateMembers' },
-    { name: 'demitir', description: 'Demitir membro da staff', default_member_permissions: 'BanMembers' },
-    { name: 'advertir-staff', description: 'Advertir um membro da staff', default_member_permissions: 'ModerateMembers' },
-    { name: 'tirarcooldown', description: 'Remover cooldown de avaliação', default_member_permissions: 'ModerateMembers' }
+    { name: 'ban', description: 'Banir membro', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'unban', description: 'Desbanir', options: [{ name: 'id', type: 3, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'banlist', description: 'Lista de banidos' },
+    { name: 'mute', description: 'Mutar', options: [{ name: 'usuario', type: 6, required: true }, { name: 'tempo', type: 4, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'unmute', description: 'Desmutar', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'warn', description: 'Advertir', options: [{ name: 'usuario', type: 6, required: true }, { name: 'motivo', type: 3, required: true }] },
+    { name: 'warns', description: 'Ver warns', options: [{ name: 'usuario', type: 6, required: true }] },
+    { name: 'adv', description: 'Atribuir cargo ADV STAFF (1,2,3)' },
+    { name: 'promover', description: 'Promover membro da staff' },
+    { name: 'rebaixar', description: 'Rebaixar membro da staff' },
+    { name: 'demitir', description: 'Demitir membro da staff' },
+    { name: 'advertir-staff', description: 'Advertir um membro da staff' },
+    { name: 'tirarcooldown', description: 'Remover cooldown de avaliação' }
 ];
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 async function regComandos() {
@@ -188,7 +185,6 @@ async function regComandos() {
     } catch (e) { console.error(e); }
 }
 
-// ==================== CLIENT ====================
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -442,7 +438,7 @@ client.on('messageCreate', async message => {
     const member = message.member;
     const executor = message.author.tag;
 
-    // Comandos públicos
+    // Comandos públicos (todos podem usar)
     if (cmd === 'avaliar') return message.reply('⭐ Para avaliar um staff, use `/avaliar`.');
     if (cmd === 'media') {
         const user = message.mentions.users.first();
@@ -468,10 +464,10 @@ client.on('messageCreate', async message => {
     // Se não é staff, bloqueia
     if (getNivel(member) === 0) return message.reply('❌ Sem permissão.');
 
-    // Comandos de moderação simples (via prefixo)
+    // Comandos de moderação (via prefixo)
     if (cmd === 'ban' && podeBan(member)) {
         const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione');
+        if (!user) return message.reply('❌ Mencione um usuário');
         const reason = args.join(' ') || 'Sem motivo';
         await message.guild.members.ban(user.id, { reason });
         const embed = createLogEmbed('🔨 BAN', 0xFF0000, [
@@ -484,7 +480,7 @@ client.on('messageCreate', async message => {
     }
     if (cmd === 'unban' && podeUnban(member)) {
         const id = args[0];
-        if (!id) return message.reply('❌ ID');
+        if (!id) return message.reply('❌ ID do usuário');
         const motivo = args.slice(1).join(' ') || 'Sem motivo';
         try {
             await message.guild.members.unban(id);
@@ -496,15 +492,15 @@ client.on('messageCreate', async message => {
     if (cmd === 'banlist' && podeBan(member)) {
         const bans = await message.guild.bans.fetch();
         if (!bans.size) return message.reply('📋 Nenhum banido.');
-        const lista = bans.map(ban => `🔨 ${ban.user.tag} (${ban.user.id}) - ${ban.reason || 'Nenhum'}`).join('\n');
+        const lista = bans.map(ban => `🔨 ${ban.user.tag} (${ban.user.id}) - ${ban.reason || 'Sem motivo'}`).join('\n');
         const embed = new EmbedBuilder().setColor(0xFF0000).setTitle('📋 BANIDOS').setDescription(lista.slice(0,4000));
         return message.reply({ embeds: [embed] });
     }
     if (cmd === 'mute' && podeMute(member)) {
         const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione');
+        if (!user) return message.reply('❌ Mencione um usuário');
         const tempo = parseInt(args[1]);
-        if (isNaN(tempo)) return message.reply('❌ Minutos');
+        if (isNaN(tempo)) return message.reply('❌ Informe minutos');
         const reason = args.slice(2).join(' ') || 'Sem motivo';
         const target = await message.guild.members.fetch(user.id);
         await target.timeout(tempo * 60 * 1000, reason);
@@ -519,7 +515,7 @@ client.on('messageCreate', async message => {
     }
     if (cmd === 'unmute' && podeMute(member)) {
         const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione');
+        if (!user) return message.reply('❌ Mencione um usuário');
         const motivo = args.slice(1).join(' ') || 'Sem motivo';
         const target = await message.guild.members.fetch(user.id);
         await target.timeout(null);
@@ -533,7 +529,7 @@ client.on('messageCreate', async message => {
     }
     if (cmd === 'warn' && podeWarn(member)) {
         const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione');
+        if (!user) return message.reply('❌ Mencione um usuário');
         const reason = args.slice(1).join(' ') || 'Sem motivo';
         if (!warns.has(user.id)) warns.set(user.id, []);
         warns.get(user.id).push({ reason, moderator: executor, date: new Date() });
@@ -548,14 +544,15 @@ client.on('messageCreate', async message => {
     }
     if (cmd === 'warns' && podeWarn(member)) {
         const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mencione');
+        if (!user) return message.reply('❌ Mencione um usuário');
         const list = warns.get(user.id);
         if (!list || !list.length) return message.reply(`📋 ${user.tag} sem warns.`);
         const desc = list.map((w,i)=>`${i+1} - ${w.reason} (por ${w.moderator})`).join('\n');
         const embed = new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(desc);
         return message.reply({ embeds: [embed] });
     }
-    // Comandos de staff (promover/rebaixar/etc) são apenas via slash – redirecionar
+
+    // Comandos de staff avançados – redirecionar para slash
     if (cmd === 'promover' || cmd === 'rebaixar' || cmd === 'demitir' || cmd === 'advertir-staff' || cmd === 'tirarcooldown' || cmd === 'adv') {
         return message.reply(`❌ Use o comando slash \`/${cmd}\` para abrir o painel interativo.`);
     }
@@ -575,7 +572,7 @@ client.on('messageCreate', async message => {
 
 // ==================== INTERAÇÕES (SLASH, MODAIS, DROPDOWN) ====================
 client.on('interactionCreate', async interaction => {
-    // Modal de avaliação – cooldown só agora
+    // Modal de avaliação (cooldown aplicado aqui)
     if (interaction.isModalSubmit() && interaction.customId === 'avaliarModal') {
         const now = Date.now();
         const last = cooldownAvaliacao.get(interaction.user.id);
@@ -605,18 +602,16 @@ client.on('interactionCreate', async interaction => {
                 { name: '📊 Média', value: `${media.toFixed(1)}/10` }
             ).setTimestamp();
         await canal.send({ embeds: [embed] });
-        // Só agora marca o cooldown
         cooldownAvaliacao.set(interaction.user.id, now);
         return interaction.reply({ content: '✅ Avaliação enviada!', ephemeral: true });
     }
 
-    // Slash commands
     if (!interaction.isChatInputCommand()) return;
     const cmd = interaction.commandName;
     const member = interaction.member;
     const executor = interaction.user.tag;
 
-    // Comando /avaliar – apenas abre o modal (sem cooldown)
+    // Comandos públicos
     if (cmd === 'avaliar') {
         const modal = new ModalBuilder().setCustomId('avaliarModal').setTitle('⭐ Avaliar Staff');
         modal.addComponents(
@@ -646,7 +641,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Comandos restritos – verifica permissão pelo cargo (nível)
+    // Comandos restritos – verificar permissão por cargo (nível)
     if (getNivel(member) === 0) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
 
     // Comandos de moderação via slash
@@ -730,7 +725,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Comandos de gestão de staff (modal)
+    // Comandos de staff avançados (com modal)
     if (cmd === 'promover') {
         if (!podePromover(member, { id: 'dummy' })) return interaction.reply({ content: '❌ Você não pode promover.', ephemeral: true });
         const modal = new ModalBuilder().setCustomId('promoverModal').setTitle('Promover Staff');
@@ -797,7 +792,7 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// Dropdown para ADV
+// Dropdown handler para ADV
 client.on('interactionCreate', async interaction => {
     if (!interaction.isStringSelectMenu()) return;
     if (interaction.customId === 'adv_select') {
