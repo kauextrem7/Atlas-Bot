@@ -7,7 +7,7 @@ const port = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Bot Atlas RP está online'));
 app.listen(port, () => console.log(`✅ Web server na porta ${port}`));
 
-// ==================== CANAIS ====================
+// ==================== CANAIS (todos com emoji + ・) ====================
 const CANAL_MEMBROS = '📥・logs-membros';
 const CANAL_AUTOMOD = '🤖・logs-automod';
 const CANAL_PUNICOES = '📋・punição-discord';
@@ -24,14 +24,14 @@ const CANAL_REACOES = '⭐・logs-reacoes';
 const CANAL_WEBHOOKS = '🔗・logs-webhooks';
 const CANAL_BOOSTS = '💪・logs-boosts';
 
-const canaisLog = [
+const LISTA_CANAIS_LOG = [
     { nome: CANAL_MEMBROS, desc: '📥 Entrada/saída, voz e apelidos' },
     { nome: CANAL_AUTOMOD, desc: '🤖 Automod (palavrões, links)' },
     { nome: CANAL_PUNICOES, desc: '🔨 Banimentos, muttes, warns e ADV Staff' },
     { nome: CANAL_CARGOS, desc: '🏷️ Logs de cargos' },
     { nome: CANAL_SERVIDOR, desc: '⚙️ Logs do servidor' },
     { nome: CANAL_MENSAGENS, desc: '✏️ Logs de mensagens' },
-    { nome: CANAL_AVALIACOES, desc: '⭐ Avaliações de staff' },
+    { nome: CANAL_AVALIACOES, desc: '⭐ Avaliações de staff (público)' },
     { nome: CANAL_PROMOVIDO, desc: '📗 Relatório promoções' },
     { nome: CANAL_REBAIXADO, desc: '📗 Relatório rebaixamentos' },
     { nome: CANAL_DEMITIDO, desc: '📗 Relatório demissões' },
@@ -42,7 +42,7 @@ const canaisLog = [
     { nome: CANAL_BOOSTS, desc: '💪 Logs de boosts' }
 ];
 
-// ==================== HIERARQUIA ====================
+// ==================== HIERARQUIA DE CARGOS ====================
 const CARGOS_LEVEL = {
     'Staff': 1,
     'Estagiário(a)': 2,
@@ -70,12 +70,12 @@ function getNivel(member) {
     return maxNivel;
 }
 
-// ========== PERMISSÕES ==========
+// Permissões
 const podeBan = m => getNivel(m) >= 8;
 const podeUnban = m => getNivel(m) >= 8;
 const podeMute = m => getNivel(m) >= 1;
 const podeWarn = m => getNivel(m) >= 1;
-const podeAdv = m => getNivel(m) >= 5;        // Admin+ pode todos ADV
+const podeAdv = m => getNivel(m) >= 5;
 const podeAdvertirStaff = m => getNivel(m) >= 5;
 const podeDemitir = m => getNivel(m) >= 8;
 const podeTirarCooldown = m => getNivel(m) >= 5;
@@ -103,7 +103,7 @@ function podeRebaixar(executor, alvo) {
 const cooldownAvaliacao = new Map();
 const COOLDOWN_TIME = 15 * 60 * 1000;
 
-// ==================== FUNÇÕES AUXILIARES ====================
+// ==================== FUNÇÕES GLOBAIS ====================
 async function sendLog(guild, channelName, embed) {
     const channel = guild.channels.cache.find(c => c.name === channelName && c.isTextBased());
     if (channel) await channel.send({ embeds: [embed] }).catch(() => {});
@@ -129,10 +129,10 @@ async function getCargoAtual(member) {
     if (maxNivel === 0 && member.roles.cache.some(r => r.name === 'Staff')) return { nome: 'Staff', nivel: 1 };
     return { nome: cargoNome, nivel: maxNivel };
 }
-function getCargoNome(nivel) {
-    return LEVEL_CARGOS[nivel] || 'Nenhum';
-}
+function getCargoNome(nivel) { return LEVEL_CARGOS[nivel] || 'Nenhum'; }
+
 async function criarCanaisLog(guild) {
+    // Cria categoria LOGS se não existir
     let categoria = guild.channels.cache.find(c => c.name === '📁 LOGS' && c.type === ChannelType.GuildCategory);
     if (!categoria) {
         categoria = await guild.channels.create({
@@ -140,9 +140,12 @@ async function criarCanaisLog(guild) {
             type: ChannelType.GuildCategory,
             permissionOverwrites: [{ id: guild.roles.everyone.id, deny: [PermissionsBitField.Flags.ViewChannel] }]
         });
-        console.log('✅ Categoria 📁 LOGS criada');
+        console.log(`✅ Categoria 📁 LOGS criada em ${guild.name}`);
+    } else {
+        console.log(`⚠️ Categoria 📁 LOGS já existe em ${guild.name}`);
     }
-    for (const canal of canaisLog) {
+    // Cria cada canal da lista
+    for (const canal of LISTA_CANAIS_LOG) {
         const existe = guild.channels.cache.find(c => c.name === canal.nome);
         if (!existe) {
             await guild.channels.create({
@@ -152,7 +155,9 @@ async function criarCanaisLog(guild) {
                 topic: canal.desc,
                 permissionOverwrites: [{ id: guild.roles.everyone.id, deny: [PermissionsBitField.Flags.ViewChannel] }]
             });
-            console.log(`✅ Canal criado: ${canal.nome}`);
+            console.log(`✅ Canal criado: ${canal.nome} em ${guild.name}`);
+        } else {
+            console.log(`⚠️ Canal ${canal.nome} já existe em ${guild.name}`);
         }
     }
 }
@@ -164,9 +169,9 @@ const slashCommands = [
     { name: 'ranking', description: 'Ranking dos staffs' },
     { name: 'ajuda', description: 'Mostrar comandos' },
     { name: 'ban', description: 'Banir membro', options: [{ name: 'usuario', type: 6, description: 'Usuário', required: true }, { name: 'motivo', type: 3, description: 'Motivo', required: true }] },
-    { name: 'unban', description: 'Desbanir membro', options: [{ name: 'id', type: 3, description: 'ID', required: true }, { name: 'motivo', type: 3, description: 'Motivo', required: true }] },
-    { name: 'banlist', description: 'Listar banidos' },
-    { name: 'mute', description: 'Mutar', options: [{ name: 'usuario', type: 6, description: 'Usuário', required: true }, { name: 'tempo', type: 4, description: 'Minutos', required: true }, { name: 'motivo', type: 3, description: 'Motivo', required: true }] },
+    { name: 'unban', description: 'Desbanir', options: [{ name: 'id', type: 3, description: 'ID', required: true }, { name: 'motivo', type: 3, description: 'Motivo', required: true }] },
+    { name: 'banlist', description: 'Lista de banidos' },
+    { name: 'mute', description: 'Mutar (máx 30 dias)', options: [{ name: 'usuario', type: 6, description: 'Usuário', required: true }, { name: 'tempo', type: 4, description: 'Minutos (até 43200 = 30 dias)', required: true }, { name: 'motivo', type: 3, description: 'Motivo', required: true }] },
     { name: 'unmute', description: 'Desmutar', options: [{ name: 'usuario', type: 6, description: 'Usuário', required: true }, { name: 'motivo', type: 3, description: 'Motivo', required: true }] },
     { name: 'warn', description: 'Advertir', options: [{ name: 'usuario', type: 6, description: 'Usuário', required: true }, { name: 'motivo', type: 3, description: 'Motivo', required: true }] },
     { name: 'warns', description: 'Ver warns', options: [{ name: 'usuario', type: 6, description: 'Usuário', required: true }] },
@@ -235,13 +240,15 @@ async function enviarMensagemAvaliacao(guild) {
 client.once('ready', async () => {
     console.log(`✅ Bot ${client.user.tag} online!`);
     client.user.setPresence({ activities: [{ name: 'Atlas RP | >ajuda', type: 0 }], status: 'online' });
-    const guild = client.guilds.cache.get(process.env.GUILD_ID);
-    if (guild) {
+    
+    // Cria canais de log em TODOS os servidores onde o bot está
+    for (const guild of client.guilds.cache.values()) {
         await criarCanaisLog(guild);
         if (intervaloAvaliacao) clearInterval(intervaloAvaliacao);
         setTimeout(() => enviarMensagemAvaliacao(guild), 2000);
         intervaloAvaliacao = setInterval(() => enviarMensagemAvaliacao(guild), 600000); // 10 min
     }
+    
     await regComandos();
     console.log('🟢 Bot pronto!');
 });
@@ -507,7 +514,8 @@ client.on('messageCreate', async message => {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione');
         const tempo = parseInt(args[1]);
-        if (isNaN(tempo)) return message.reply('❌ Minutos');
+        if (isNaN(tempo) || tempo <= 0) return message.reply('❌ Tempo inválido (mínimo 1 minuto).');
+        if (tempo > 43200) return message.reply('❌ Tempo máximo é 30 dias (43200 minutos).');
         const reason = args.slice(2).join(' ') || 'Sem motivo';
         const target = await message.guild.members.fetch(user.id);
         await target.timeout(tempo * 60 * 1000, reason);
@@ -558,6 +566,7 @@ client.on('messageCreate', async message => {
         const embed = new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(desc);
         return message.reply({ embeds: [embed] });
     }
+    // Comandos de staff avançados redirecionam para slash
     if (cmd === 'promover' || cmd === 'rebaixar' || cmd === 'demitir' || cmd === 'advertir-staff' || cmd === 'tirarcooldown' || cmd === 'adv') {
         return message.reply(`❌ Use o comando slash \`/${cmd}\` para abrir o painel.`);
     }
@@ -577,7 +586,7 @@ client.on('messageCreate', async message => {
 
 // ==================== INTERAÇÕES (SLASH, MODAIS, DROPDOWN) ====================
 client.on('interactionCreate', async interaction => {
-    // Modal de avaliação (cooldown só aqui)
+    // Modal de avaliação (cooldown só após enviar)
     if (interaction.isModalSubmit() && interaction.customId === 'avaliarModal') {
         const now = Date.now();
         const last = cooldownAvaliacao.get(interaction.user.id);
@@ -618,7 +627,7 @@ client.on('interactionCreate', async interaction => {
 
     if (!member) return interaction.reply({ content: '❌ Erro: membro não identificado.', ephemeral: true });
 
-    // Comandos públicos (sem defer, pois são rápidos)
+    // Comandos públicos (rápidos)
     if (cmd === 'avaliar') {
         const modal = new ModalBuilder().setCustomId('avaliarModal').setTitle('⭐ Avaliar Staff');
         modal.addComponents(
@@ -648,12 +657,11 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Para os comandos restritos, usamos deferReply para evitar timeout
-    // Primeiro verifica se é staff (nível >= 1)
+    // Comandos restritos – verificação de permissão por cargo
     const nivel = getNivel(member);
     if (nivel === 0) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
 
-    // Comandos de moderação (usam defer)
+    // Comandos de moderação com defer (para evitar timeout)
     if (cmd === 'ban' && podeBan(member)) {
         await interaction.deferReply({ ephemeral: true });
         const user = interaction.options.getUser('usuario');
@@ -689,7 +697,8 @@ client.on('interactionCreate', async interaction => {
     if (cmd === 'mute' && podeMute(member)) {
         await interaction.deferReply({ ephemeral: true });
         const user = interaction.options.getUser('usuario');
-        const tempo = interaction.options.getInteger('tempo');
+        let tempo = interaction.options.getInteger('tempo');
+        if (tempo > 43200) tempo = 43200;
         const motivo = interaction.options.getString('motivo');
         const target = await interaction.guild.members.fetch(user.id);
         await target.timeout(tempo * 60 * 1000, motivo);
@@ -741,7 +750,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.editReply({ embeds: [embed] });
     }
 
-    // Comandos de staff avançados (com operações mais pesadas, usam defer também)
+    // Comandos de staff avançados (também com defer)
     if (cmd === 'promover') {
         await interaction.deferReply({ ephemeral: true });
         const usuario = interaction.options.getUser('usuario');
@@ -807,7 +816,7 @@ client.on('interactionCreate', async interaction => {
         }
         const embed = createLogEmbed('❌ DEMISSÃO', 0xFF0000, [
             { name: '👤 Staff', value: `${target.user.tag} (${target.id})` },
-            { name: '📛 Cargo anterior', value: 'Todos os cargos de staff' },
+            { name: '📛 Cargo', value: 'Todos os cargos de staff' },
             { name: '🛡️ Demitido por', value: executor },
             { name: '📝 Motivo', value: motivo }
         ], target.user.displayAvatarURL());
