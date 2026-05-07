@@ -68,6 +68,7 @@ const LEVEL_CARGOS = {
 
 function getNivel(member) {
     if (!member || !member.guild) return 0;
+    // Dono ou Administrador explícito -> nível máximo
     if (member.id === member.guild.ownerId || member.permissions.has(PermissionsBitField.Flags.Administrator)) return 9;
     for (let [cargo, nivel] of Object.entries(CARGOS_LEVEL)) {
         if (member.roles.cache.some(r => r.name === cargo)) return nivel;
@@ -75,12 +76,12 @@ function getNivel(member) {
     return 0;
 }
 
-// Permissões – Administrador (nível 5) pode dar todos os ADV
+// Permissões
 const podeBan = m => getNivel(m) >= 8;
 const podeUnban = m => getNivel(m) >= 8;
 const podeMute = m => getNivel(m) >= 1;
 const podeWarn = m => getNivel(m) >= 1;
-const podeAdv = m => getNivel(m) >= 5;        // ADMIN+ pode qualquer ADV
+const podeAdv = m => getNivel(m) >= 5;        // Administrador+ pode dar qualquer ADV (1,2,3)
 const podeAdvertirStaff = m => getNivel(m) >= 5;
 const podeDemitir = m => getNivel(m) >= 8;
 const podeTirarCooldown = m => getNivel(m) >= 5;
@@ -211,7 +212,6 @@ async function enviarMensagemAvaliacao(guild) {
     const channel = guild.channels.cache.find(c => c.name === CANAL_AVALIACOES && c.isTextBased());
     if (!channel) return;
     try {
-        // Apaga APENAS a mensagem do bot (se existir)
         if (avaliacaoMensagemAtual) {
             try {
                 const msgAntiga = await channel.messages.fetch(avaliacaoMensagemAtual.id).catch(() => null);
@@ -233,9 +233,7 @@ async function enviarMensagemAvaliacao(guild) {
             );
         const novaMsg = await channel.send({ embeds: [embed] });
         avaliacaoMensagemAtual = novaMsg;
-    } catch (err) {
-        console.error('Erro ao enviar mensagem rotativa de avaliação:', err);
-    }
+    } catch (err) {}
 }
 
 client.once('ready', async () => {
@@ -245,9 +243,7 @@ client.once('ready', async () => {
     if (guild) {
         await criarCanaisLog(guild);
         if (intervaloAvaliacao) clearInterval(intervaloAvaliacao);
-        // Primeira mensagem com 2 segundos de atraso
         setTimeout(() => enviarMensagemAvaliacao(guild), 2000);
-        // Depois a cada 2 minutos (120000ms)
         intervaloAvaliacao = setInterval(() => enviarMensagemAvaliacao(guild), 120000);
     }
     await regComandos();
@@ -456,7 +452,6 @@ client.on('messageCreate', async message => {
     const member = message.member;
     const executor = message.author.tag;
 
-    // Públicos
     if (cmd === 'avaliar') return message.reply('⭐ Para avaliar um staff, use `/avaliar`.');
     if (cmd === 'media') {
         const user = message.mentions.users.first();
@@ -481,7 +476,6 @@ client.on('messageCreate', async message => {
 
     if (getNivel(member) === 0) return message.reply('❌ Sem permissão.');
 
-    // Moderação via prefixo
     if (cmd === 'ban' && podeBan(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione um usuário');
@@ -568,7 +562,7 @@ client.on('messageCreate', async message => {
         const embed = new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(desc);
         return message.reply({ embeds: [embed] });
     }
-    // Redirecionar comandos avançados para slash
+    // Redirecionar comandos avançados para slash (já que o modal só funciona via slash)
     if (cmd === 'promover' || cmd === 'rebaixar' || cmd === 'demitir' || cmd === 'advertir-staff' || cmd === 'tirarcooldown' || cmd === 'adv') {
         return message.reply(`❌ Use o comando slash \`/${cmd}\` para abrir o painel interativo.`);
     }
@@ -659,7 +653,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Staff-only commands
+    // Verifica se é staff (nível >=1)
     if (getNivel(member) === 0) return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
 
     // Comandos de moderação via slash
@@ -743,7 +737,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Comandos de staff avançados (abrem modal sem verificação prévia)
+    // Comandos avançados (modal) – NENHUMA VERIFICAÇÃO PRÉVIA, abre direto
     if (cmd === 'promover') {
         const modal = new ModalBuilder().setCustomId('promoverModal').setTitle('Promover Staff');
         modal.addComponents(
@@ -785,7 +779,9 @@ client.on('interactionCreate', async interaction => {
     }
     if (cmd === 'adv') {
         // Administrador+ pode ver e usar todos os níveis
-        if (getNivel(member) < 5) return interaction.reply({ content: '❌ Apenas Administrador+ pode atribuir ADV STAFF.', ephemeral: true });
+        if (getNivel(member) < 5) {
+            return interaction.reply({ content: '❌ Apenas Administrador+ pode atribuir ADV STAFF.', ephemeral: true });
+        }
         const select = new StringSelectMenuBuilder()
             .setCustomId('adv_select')
             .setPlaceholder('Selecione o cargo ADV')
