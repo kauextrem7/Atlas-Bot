@@ -63,29 +63,28 @@ function barraNota(nota) {
     return '▰'.repeat(preenchidos) + '▱'.repeat(total - preenchidos);
 }
 
-// Comandos slash
 const commands = [
     { name: 'ban', description: 'Banir um membro', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
-    { name: 'unban', description: 'Desbanir um membro', options: [{ name: 'id', type: 3, required: true, description: 'ID do usuário' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
-    { name: 'banlist', description: 'Ver lista de banidos' },
-    { name: 'mute', description: 'Mutar um membro', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'tempo', type: 4, required: true, description: 'Minutos' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
-    { name: 'unmute', description: 'Desmutar um membro', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
-    { name: 'warn', description: 'Advertir um membro', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
-    { name: 'warns', description: 'Ver warns de um membro', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }] },
+    { name: 'unban', description: 'Desbanir um membro', options: [{ name: 'id', type: 3, required: true, description: 'ID' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
+    { name: 'banlist', description: 'Lista de banidos' },
+    { name: 'mute', description: 'Mutar', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'tempo', type: 4, required: true, description: 'Minutos' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
+    { name: 'unmute', description: 'Desmutar', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
+    { name: 'warn', description: 'Advertir', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
+    { name: 'warns', description: 'Ver warns', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }] },
     { name: 'adv1', description: 'ADV STAFF 1', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
     { name: 'adv2', description: 'ADV STAFF 2', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
     { name: 'adv3', description: 'ADV STAFF 3', options: [{ name: 'usuario', type: 6, required: true, description: 'Usuário' }, { name: 'motivo', type: 3, required: true, description: 'Motivo' }] },
-    { name: 'avaliar', description: 'Avaliar um staff (1 a 10) - Todos' },
-    { name: 'media', description: 'Média de um staff - Todos', options: [{ name: 'staff', type: 6, required: true, description: 'Staff' }] },
-    { name: 'ranking', description: 'Ranking dos staffs - Todos' },
-    { name: 'ajuda', description: 'Mostrar comandos' }
+    { name: 'avaliar', description: 'Avaliar staff (1-10) - Todos' },
+    { name: 'media', description: 'Média do staff - Todos', options: [{ name: 'staff', type: 6, required: true, description: 'Staff' }] },
+    { name: 'ranking', description: 'Ranking staffs - Todos' },
+    { name: 'ajuda', description: 'Comandos' }
 ];
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 async function registerCommands() {
     try {
-        console.log('📌 Registrando comandos slash...');
+        console.log('📌 Registrando comandos...');
         await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
         console.log('✅ Comandos registrados!');
     } catch (error) { console.error('❌ Erro:', error); }
@@ -98,18 +97,15 @@ client.once(Events.ClientReady, async (c) => {
     console.log('🟢 Bot pronto!');
 });
 
-// DM de boas-vindas
 client.on(Events.GuildMemberAdd, async (member) => {
     const embed = createLogEmbed('📥 MEMBRO ENTROU', 0x00FF00, [
-        { name: '👤 Membro', value: `${member.user.tag}`, inline: true },
+        { name: '👤 Membro', value: member.user.tag, inline: true },
         { name: '👥 Total', value: `${member.guild.memberCount}`, inline: true }
     ]);
     await sendLog(member.guild, '📥・logs-membros', embed);
     
-    const dmEmbed = new EmbedBuilder()
-        .setColor(0x00FF00)
-        .setTitle('📥 Bem-vindo ao Atlas RP!')
-        .setDescription(`Olá ${member.user}, seja bem-vindo!\n\n📌 **Regras:**\nhttps://discord.com/channels/1493042257861939372/1497661394936660049\nhttps://discord.com/channels/1493042257861939372/1497661392864411779`);
+    const dmEmbed = new EmbedBuilder().setColor(0x00FF00).setTitle('📥 Bem-vindo ao Atlas RP!')
+        .setDescription(`Olá ${member.user}!\n📌 Regras: https://discord.com/channels/1493042257861939372/1497661394936660049\n📌 Regras In-Game: https://discord.com/channels/1493042257861939372/1497661392864411779`);
     await member.send({ embeds: [dmEmbed] }).catch(() => {});
 });
 
@@ -146,7 +142,7 @@ client.on(Events.MessageCreate, async (message) => {
     }
 });
 
-// ========== COMANDOS DE PREFIXO (&) ==========
+// COMANDOS DE PREFIXO
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
     if (!message.content.startsWith(PREFIX)) return;
@@ -191,9 +187,7 @@ client.on(Events.MessageCreate, async (message) => {
         return;
     }
     
-    // ========== COMANDOS RESTRITOS (verificação de permissão) ==========
-    
-    // BAN (Líder Administrativo apenas)
+    // BAN
     if (command === 'ban') {
         if (!podeBan(member)) return message.reply('❌ Apenas Líder Administrativo pode banir!');
         const user = message.mentions.users.first();
@@ -201,17 +195,16 @@ client.on(Events.MessageCreate, async (message) => {
         const reason = args.join(' ') || 'Sem motivo';
         await message.guild.members.ban(user.id, { reason });
         const embed = createLogEmbed('🔨 BANIMENTO', 0xFF0000, [
-            { name: '👤 Usuário banido', value: `${user.tag} (${user.id})`, inline: false },
+            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: false },
             { name: '🛡️ Responsável', value: executor, inline: true },
-            { name: '📝 Motivo', value: reason, inline: true },
-            { name: '🕐 Data', value: new Date().toLocaleString('pt-BR'), inline: true }
+            { name: '📝 Motivo', value: reason, inline: true }
         ]);
         await sendLog(message.guild, '📋・punição-discord', embed);
-        message.reply(`✅ ${user.tag} foi banido por ${executor}!`);
+        message.reply(`✅ ${user.tag} banido por ${executor}!`);
         return;
     }
     
-    // UNBAN (Líder Administrativo apenas)
+    // UNBAN
     if (command === 'unban') {
         if (!podeUnban(member)) return message.reply('❌ Apenas Líder Administrativo pode desbanir!');
         const id = args[0];
@@ -220,7 +213,7 @@ client.on(Events.MessageCreate, async (message) => {
         try {
             await message.guild.members.unban(id);
             const embed = createLogEmbed('✅ DESBANIMENTO', 0x00FF00, [
-                { name: '🆔 Usuário desbanido', value: id, inline: false },
+                { name: '🆔 Usuário', value: id, inline: false },
                 { name: '🛡️ Responsável', value: executor, inline: true },
                 { name: '📝 Motivo', value: motivo, inline: true }
             ]);
@@ -240,9 +233,9 @@ client.on(Events.MessageCreate, async (message) => {
         return;
     }
     
-    // MUTE (Administrador+)
+    // MUTE
     if (command === 'mute') {
-        if (!podeMute(member)) return message.reply('❌ Você não tem permissão para mutar!');
+        if (!podeMute(member)) return message.reply('❌ Sem permissão!');
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione um usuário!');
         const time = parseInt(args[1]);
@@ -251,7 +244,7 @@ client.on(Events.MessageCreate, async (message) => {
         const target = await message.guild.members.fetch(user.id);
         await target.timeout(time * 60 * 1000, reason);
         const embed = createLogEmbed('🔇 MUTE', 0xFFA500, [
-            { name: '👤 Usuário mutado', value: `${user.tag} (${user.id})`, inline: false },
+            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: false },
             { name: '🛡️ Responsável', value: executor, inline: true },
             { name: '⏱️ Tempo', value: `${time} minutos`, inline: true },
             { name: '📝 Motivo', value: reason, inline: true }
@@ -261,7 +254,7 @@ client.on(Events.MessageCreate, async (message) => {
         return;
     }
     
-    // UNMUTE (Administrador+)
+    // UNMUTE
     if (command === 'unmute') {
         if (!podeMute(member)) return message.reply('❌ Sem permissão!');
         const user = message.mentions.users.first();
@@ -270,7 +263,7 @@ client.on(Events.MessageCreate, async (message) => {
         const target = await message.guild.members.fetch(user.id);
         await target.timeout(null);
         const embed = createLogEmbed('🔊 DESMUTE', 0x00FF00, [
-            { name: '👤 Usuário desmutado', value: `${user.tag} (${user.id})`, inline: false },
+            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: false },
             { name: '🛡️ Responsável', value: executor, inline: true },
             { name: '📝 Motivo', value: motivo, inline: true }
         ]);
@@ -279,7 +272,7 @@ client.on(Events.MessageCreate, async (message) => {
         return;
     }
     
-    // WARN (Administrador+)
+    // WARN
     if (command === 'warn') {
         if (!podeWarn(member)) return message.reply('❌ Sem permissão!');
         const user = message.mentions.users.first();
@@ -288,10 +281,10 @@ client.on(Events.MessageCreate, async (message) => {
         if (!warns.has(user.id)) warns.set(user.id, []);
         warns.get(user.id).push({ reason, moderator: executor, date: new Date() });
         const embed = createLogEmbed('⚠️ WARN', 0xFFA500, [
-            { name: '👤 Usuário advertido', value: `${user.tag} (${user.id})`, inline: false },
+            { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: false },
             { name: '🛡️ Responsável', value: executor, inline: true },
             { name: '📝 Motivo', value: reason, inline: true },
-            { name: '📊 Total warns', value: `${warns.get(user.id).length}`, inline: true }
+            { name: '📊 Total', value: `${warns.get(user.id).length}`, inline: true }
         ]);
         await sendLog(message.guild, '📋・punição-discord', embed);
         message.reply(`✅ Warn aplicado em ${user.tag} por ${executor}! Total: ${warns.get(user.id).length}`);
@@ -305,12 +298,12 @@ client.on(Events.MessageCreate, async (message) => {
         if (!user) return message.reply('❌ Mencione um usuário!');
         const userWarns = warns.get(user.id);
         if (!userWarns || userWarns.length === 0) return message.reply(`📋 ${user.tag} não tem warns.`);
-        const lista = userWarns.map((w, i) => `${i+1} - ${w.reason} (por ${w.moderator})`).join('\n');
+        const lista = userWarns.map((w, i) => `${i+1} - ${w.reason} (por ${w.moderator} em ${new Date(w.date).toLocaleString('pt-BR')})`).join('\n');
         message.reply({ embeds: [new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(lista)] });
         return;
     }
     
-    // ADV1 (Supervisor+)
+    // ADV1
     if (command === 'adv1') {
         if (!podeAdv1(member)) return message.reply('❌ Apenas Supervisor+ pode dar ADV1!');
         const user = message.mentions.users.first();
@@ -330,7 +323,7 @@ client.on(Events.MessageCreate, async (message) => {
         return;
     }
     
-    // ADV2 (Coordenador+)
+    // ADV2
     if (command === 'adv2') {
         if (!podeAdv2(member)) return message.reply('❌ Apenas Coordenador+ pode dar ADV2!');
         const user = message.mentions.users.first();
@@ -350,7 +343,7 @@ client.on(Events.MessageCreate, async (message) => {
         return;
     }
     
-    // ADV3 (Líder Administrativo apenas)
+    // ADV3
     if (command === 'adv3') {
         if (!podeAdv3(member)) return message.reply('❌ Apenas Líder Administrativo pode dar ADV3!');
         const user = message.mentions.users.first();
@@ -377,11 +370,11 @@ client.on(Events.MessageCreate, async (message) => {
             .setTitle('📚 Atlas RP - Comandos')
             .setDescription(`Prefixo: ${PREFIX} | Slash: /`)
             .addFields(
-                { name: '👑 Líder Administrativo', value: '`ban`, `unban`, `adv3`', inline: false },
-                { name: '⭐ Coordenador(a)', value: '`adv2`, `mute`, `unmute`, `warn`', inline: false },
-                { name: '🛡️ Supervisor(a)', value: '`adv1`, `mute`, `unmute`, `warn`', inline: false },
-                { name: '🔧 Administrador(a)', value: '`mute`, `unmute`, `warn`', inline: false },
-                { name: '⭐ Todos', value: '`avaliar`, `media`, `ranking`', inline: false }
+                { name: '👑 Líder', value: '`ban`, `unban`, `adv3`', inline: true },
+                { name: '⭐ Coordenador', value: '`adv2`, `mute`, `unmute`, `warn`', inline: true },
+                { name: '🛡️ Supervisor', value: '`adv1`, `mute`, `unmute`, `warn`', inline: true },
+                { name: '🔧 Admin', value: '`mute`, `unmute`, `warn`', inline: true },
+                { name: '⭐ Todos', value: '`avaliar`, `media`, `ranking`', inline: true }
             );
         message.reply({ embeds: [embed] });
         return;
@@ -433,6 +426,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     
     const cmd = interaction.commandName;
     const executor = interaction.user.tag;
+    const member = interaction.member;
     
     // Comandos para TODOS
     if (cmd === 'avaliar') {
@@ -468,9 +462,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
     
-    // Comandos restritos - verificação de permissão por cargo
-    const member = interaction.member;
-    
+    // BAN
     if (cmd === 'ban') {
         if (!podeBan(member)) return interaction.reply({ content: '❌ Apenas Líder Administrativo pode banir!', ephemeral: true });
         const user = interaction.options.getUser('usuario');
@@ -486,6 +478,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
     
+    // UNBAN
     if (cmd === 'unban') {
         if (!podeUnban(member)) return interaction.reply({ content: '❌ Apenas Líder Administrativo pode desbanir!', ephemeral: true });
         const id = interaction.options.getString('id');
@@ -503,6 +496,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
     
+    // BANLIST
     if (cmd === 'banlist') {
         if (!podeBan(member)) return interaction.reply({ content: '❌ Sem permissão!', ephemeral: true });
         const bans = await interaction.guild.bans.fetch();
@@ -512,8 +506,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
     
+    // MUTE
     if (cmd === 'mute') {
-        if (!podeMute(member)) return interaction.reply({ content: '❌ Você não tem permissão!', ephemeral: true });
+        if (!podeMute(member)) return interaction.reply({ content: '❌ Sem permissão!', ephemeral: true });
         const user = interaction.options.getUser('usuario');
         const tempo = interaction.options.getInteger('tempo');
         const motivo = interaction.options.getString('motivo');
@@ -521,4 +516,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await target.timeout(tempo * 60 * 1000, motivo);
         const embed = createLogEmbed('🔇 MUTE', 0xFFA500, [
             { name: '👤 Usuário', value: `${user.tag} (${user.id})`, inline: false },
-            { name: '🛡️ Responsável', value: executor, inline
+            { name: '🛡️ Responsável', value: executor, inline: true },
+            { name: '⏱️ Tempo', value: `${tempo} minutos`, inline: true },
+            { name: '📝 Motivo', value: motivo, inline: true }
+        ]);
+        await sendLog(interaction.guild, '📋・punição-discord', embed);
+        interaction.reply({ content: `✅ ${user.tag} mutado por ${tempo} min por ${executor}!`, ephemeral: true });
+        return;
+    }
+    
+    // UNMUTE
+    if (cmd === 'unmute') {
+        if (!podeMute(member)) return interaction.reply({ content: '❌ Sem permissão!', ephemeral: true });
+        const user = interaction.options.getUser('usuario');
+        const motivo = interaction.options.getString('motivo');
+        const target = await interaction.guild.members.fetch(user.id);
+        await target.timeout(null);
+        const embed = createLogEmbed('🔊 DESMUTE', 0x00FF00, [
+            { name: '👤 Usuário', value: `${user.tag} (${user
