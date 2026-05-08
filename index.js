@@ -83,7 +83,7 @@ const podeDemitir = m => getNivel(m) >= 8;
 const podeTirarCooldown = m => getNivel(m) >= 5;
 const podeResetarRanking = m => getNivel(m) >= 8;
 const podeClear = m => getNivel(m) >= 5;
-const podeHackban = m => getNivel(m) >= 8; // hackban requer nível 8+
+const podeHackban = m => getNivel(m) >= 8;
 
 // ==================== FUNÇÕES AUXILIARES ====================
 const cooldownAvaliacao = new Map();
@@ -117,7 +117,7 @@ async function criarCanaisLog(guild) {
             console.log(`✅ Canal criado: ${canal.nome} em ${guild.name}`);
         }
     }
-    // NÃO criar os canais de boas-vindas e saída – eles já existem
+    // NÃO criar canais de boas-vindas e saída – eles já existem
 }
 
 // ==================== SLASH COMMANDS ====================
@@ -181,13 +181,14 @@ const warns = new Map();
 const avaliacoes = new Map();
 const staffWarns = new Map();
 
-// ==================== MENSAGEM ROTATIVA DE AVALIAÇÃO ====================
+// ==================== MENSAGEM ROTATIVA DE AVALIAÇÃO (apaga anterior e envia nova a cada 15min) ====================
 let avaliacaoMsg = null;
 let intervaloRotativo = null;
 async function enviarMsgAvaliacao(guild) {
     const canal = guild.channels.cache.find(c => c.name === CANAL_AVALIACOES && c.isTextBased());
     if (!canal) return;
     try {
+        // Apaga a mensagem anterior, se existir
         if (avaliacaoMsg && avaliacaoMsg.author?.id === client.user.id) {
             try { await avaliacaoMsg.delete(); } catch(e) {}
         }
@@ -220,7 +221,7 @@ client.once('ready', async () => {
     console.log('🟢 Bot pronto!');
 });
 
-// ==================== ENTRADA (BOAS-VINDAS) ====================
+// ==================== ENTRADA (BOAS-VINDAS) – EXATAMENTE COMO PEDIDO ====================
 client.on('guildMemberAdd', async member => {
     const welcomeChannel = member.guild.channels.cache.find(c => c.name === CANAL_BOAS_VINDAS && c.isTextBased());
     if (welcomeChannel) {
@@ -275,7 +276,7 @@ client.on('guildMemberRemove', async member => {
     await sendLog(member.guild, CANAL_MEMBROS, logEmbed);
 });
 
-// ==================== MODLOG PROFISSIONAL (CARGOS) ====================
+// ==================== MODLOG PROFISSIONAL (CARGOS) – CORRIGIDO ====================
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
     if (oldMember.nickname !== newMember.nickname) {
         const e = createLogEmbed('✏️ APELIDO ALTERADO', 0xFFA500, [
@@ -353,6 +354,7 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
         await sendLog(newMember.guild, CANAL_CARGOS, embedOld);
     }
 });
+
 // ==================== OUTROS EVENTOS DE LOG (resumidos mas completos) ====================
 client.on('voiceStateUpdate', async (oldState, newState) => {
     const member = newState.member || oldState.member;
@@ -368,6 +370,15 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         const e = createLogEmbed('🎤 SAIU DA CALL', 0xFF0000, [
             { name: '👤 Membro', value: `${member.user.tag}`, inline: true },
             { name: '🎧 Canal', value: `<#${oldState.channelId}>`, inline: true }
+        ], member.user.displayAvatarURL());
+        await sendLog(member.guild, CANAL_MEMBROS, e);
+    }
+    if ((oldState.mute !== newState.mute || oldState.serverMute !== newState.serverMute) && !(oldState.mute === newState.mute && oldState.serverMute === newState.serverMute)) {
+        const acao = newState.mute ? 'MUTADO' : 'DESMUTADO';
+        const cor = newState.mute ? 0xFFA500 : 0x00FF00;
+        const e = createLogEmbed(`🔇 ${acao} NA CALL`, cor, [
+            { name: '👤 Membro', value: member.user.tag, inline: true },
+            { name: '🎧 Canal', value: newState.channelId ? `<#${newState.channelId}>` : `<#${oldState.channelId}>`, inline: true }
         ], member.user.displayAvatarURL());
         await sendLog(member.guild, CANAL_MEMBROS, e);
     }
