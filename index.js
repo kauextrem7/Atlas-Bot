@@ -7,7 +7,7 @@ const port = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Bot Atlas RP está online'));
 app.listen(port, () => console.log(`✅ Web server na porta ${port}`));
 
-// ==================== CANAIS (POR NOME, EXCETO SAÍDA QUE USA ID) ====================
+// ==================== CANAIS (POR NOME) ====================
 const CANAL_MEMBROS = '📥・logs-membros';
 const CANAL_AUTOMOD = '🤖・logs-automod';
 const CANAL_PUNICOES = '📋・punição-discord';
@@ -25,8 +25,7 @@ const CANAL_WEBHOOKS = '🔗・logs-webhooks';
 const CANAL_BOOSTS = '💪・logs-boosts';
 const CANAL_MODLOG = '📜・acervo-mod-logs';
 const CANAL_BOAS_VINDAS = '📌・boas-vindas';
-// Canal de SAÍDA usa ID fixo (não depende do nome)
-const ID_CANAL_SAIDA = '1498035038443536394';
+const ID_CANAL_SAIDA = '1498035038443536394'; // ID fixo do canal 🚪・saida
 
 const LISTA_CANAIS_LOG = [
     { nome: CANAL_MEMBROS, desc: '📥 Entrada/saída, voz e apelidos' },
@@ -46,7 +45,7 @@ const LISTA_CANAIS_LOG = [
     { nome: CANAL_MODLOG, desc: '📜 ModLog estilo Probot (adição/remoção de cargos com executor)' }
 ];
 
-// ==================== HIERARQUIA ====================
+// ==================== HIERARQUIA DE CARGOS ====================
 const CARGOS_LEVEL = {
     'Staff': 1,
     'Estagiário(a)': 2,
@@ -86,6 +85,23 @@ const podeResetarRanking = m => getNivel(m) >= 8;
 const podeClear = m => getNivel(m) >= 5;
 const podeHackban = m => getNivel(m) >= 8;
 
+function podePromover(exec, alvo) {
+    const ne = getNivel(exec), na = getNivel(alvo);
+    if (ne === 0 || na === 0) return false;
+    if (ne < 5) return false;
+    if (na >= ne) return false;
+    if (na >= 9) return false;
+    return true;
+}
+function podeRebaixar(exec, alvo) {
+    const ne = getNivel(exec), na = getNivel(alvo);
+    if (ne === 0 || na === 0) return false;
+    if (ne < 5) return false;
+    if (na >= ne) return false;
+    if (na <= 1) return false;
+    return true;
+}
+
 // ==================== FUNÇÕES AUXILIARES ====================
 const cooldownAvaliacao = new Map();
 const COOLDOWN_TIME = 15 * 60 * 1000;
@@ -106,6 +122,19 @@ function barraNota(nota) {
     return '▰'.repeat(p) + '▱'.repeat(20 - p);
 }
 
+async function getCargoAtual(member) {
+    let niv = 0, nome = null;
+    for (let [cargo, nivel] of Object.entries(CARGOS_LEVEL)) {
+        if (member.roles.cache.some(r => r.name === cargo) && nivel > niv) { niv = nivel; nome = cargo; }
+    }
+    if (niv === 0 && member.roles.cache.some(r => r.name === 'Staff')) return { nome: 'Staff', nivel: 1 };
+    return { nome, nivel: niv };
+}
+function getCargoNome(nivel) {
+    const entry = Object.entries(CARGOS_LEVEL).find(([_, v]) => v === nivel);
+    return entry ? entry[0] : 'Nenhum';
+}
+
 async function criarCanaisLog(guild) {
     let cat = guild.channels.cache.find(c => c.name === '📁 LOGS' && c.type === ChannelType.GuildCategory);
     if (!cat) {
@@ -118,7 +147,7 @@ async function criarCanaisLog(guild) {
             console.log(`✅ Canal criado: ${canal.nome} em ${guild.name}`);
         }
     }
-    // NÃO criar canais de boas-vindas e saída – eles já existem (saída usa ID)
+    // Não cria 📌・boas-vindas nem 🚪・saida – eles já existem
 }
 
 // ==================== SLASH COMMANDS ====================
@@ -208,6 +237,7 @@ async function enviarMsgAvaliacao(guild) {
     } catch (err) { console.error('Erro na mensagem rotativa:', err); }
 }
 
+// ==================== READY ====================
 client.once('ready', async () => {
     console.log(`✅ Bot ${client.user.tag} online!`);
     client.user.setPresence({ activities: [{ name: 'Atlas RP | /ajuda', type: 0 }], status: 'online' });
@@ -221,7 +251,7 @@ client.once('ready', async () => {
     console.log('🟢 Bot pronto!');
 });
 
-// ==================== ENTRADA (BOAS-VINDAS) ====================
+// ==================== ENTRADA (📌・boas-vindas) ====================
 client.on('guildMemberAdd', async member => {
     const welcomeChannel = member.guild.channels.cache.find(c => c.name === CANAL_BOAS_VINDAS && c.isTextBased());
     if (welcomeChannel) {
@@ -254,7 +284,7 @@ Equipe Atlas RP`)
         await welcomeChannel.send({ embeds: [embed] }).catch(console.error);
     }
 
-    // DM
+    // Mensagem privada (DM)
     try {
         const dmEmbed = new EmbedBuilder()
             .setColor(0x00AAFF)
@@ -267,7 +297,7 @@ Equipe Atlas RP`)
         console.log(`Não foi possível enviar DM para ${member.user.tag}: ${err}`);
     }
 
-    // Log interno
+    // Log no canal de membros
     const logEmbed = createLogEmbed('📥 MEMBRO ENTROU', 0x00FF00, [
         { name: '👤 Membro', value: `${member.user.tag} (${member.id})`, inline: true },
         { name: '📅 Conta criada', value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`, inline: true },
@@ -276,43 +306,54 @@ Equipe Atlas RP`)
     await sendLog(member.guild, CANAL_MEMBROS, logEmbed);
 });
 
-// ==================== SAÍDA (USANDO ID FIXO) ====================
+// ==================== SAÍDA (🚪・saida) – USANDO ID FIXO ====================
 client.on('guildMemberRemove', async member => {
     const leaveChannel = member.guild.channels.cache.get(ID_CANAL_SAIDA);
     if (leaveChannel && leaveChannel.isTextBased()) {
-        const joinedAt = member.joinedTimestamp;
-        const now = Date.now();
-        const diffMs = now - joinedAt;
-        const diffMinutes = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
-        let tempoTexto = '';
-        if (diffDays > 0) tempoTexto = `${diffDays} dia(s)`;
-        else if (diffHours > 0) tempoTexto = `${diffHours} hora(s)`;
-        else tempoTexto = `${diffMinutes} minuto(s)`;
+        // Permissão do bot
+        const botMember = member.guild.members.me;
+        if (leaveChannel.permissionsFor(botMember).has(PermissionsBitField.Flags.SendMessages)) {
+            const joinedAt = member.joinedTimestamp;
+            const now = Date.now();
+            const diffMs = now - joinedAt;
+            const diffMinutes = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+            let tempoTexto = '';
+            if (diffDays > 0) tempoTexto = `${diffDays} dia(s)`;
+            else if (diffHours > 0) tempoTexto = `${diffHours} hora(s)`;
+            else tempoTexto = `${diffMinutes} minuto(s)`;
 
-        const entradaDate = new Date(joinedAt);
-        const entradaFormatada = entradaDate.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const entradaDate = new Date(joinedAt);
+            const entradaFormatada = entradaDate.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-        const cargos = member.roles.cache.filter(r => r.id !== member.guild.id).map(r => `<@&${r.id}>`).join(' | ') || 'Nenhum cargo';
+            const cargos = member.roles.cache.filter(r => r.id !== member.guild.id).map(r => `<@&${r.id}>`).join(' | ') || 'Nenhum cargo';
 
-        const embed = new EmbedBuilder()
-            .setColor(0xFF5555)
-            .setAuthor({ name: '👤 Membro saiu!', iconURL: member.user.displayAvatarURL() })
-            .setDescription(`**${member.user.tag}** saiu do servidor!`)
-            .addFields(
-                { name: '📊 Membros atuais', value: `${member.guild.memberCount}`, inline: true },
-                { name: '⏱️ Tempo no servidor', value: tempoTexto, inline: true },
-                { name: '🏷️ Cargos', value: cargos, inline: false },
-                { name: '📅 Entrada em', value: entradaFormatada, inline: true },
-                { name: '🕒 Saída em', value: `<t:${Math.floor(now / 1000)}:F>`, inline: true }
-            )
-            .setThumbnail(member.user.displayAvatarURL())
-            .setFooter({ text: `ID: ${member.user.id}` })
-            .setTimestamp();
-        await leaveChannel.send({ embeds: [embed] }).catch(console.error);
+            const embed = new EmbedBuilder()
+                .setColor(0xFF5555)
+                .setAuthor({ name: '👤 Membro saiu!', iconURL: member.user.displayAvatarURL() })
+                .setDescription(`**${member.user.tag}** saiu do servidor!`)
+                .addFields(
+                    { name: '📊 Membros atuais', value: `${member.guild.memberCount}`, inline: true },
+                    { name: '⏱️ Tempo no servidor', value: tempoTexto, inline: true },
+                    { name: '🏷️ Cargos', value: cargos, inline: false },
+                    { name: '📅 Entrada em', value: entradaFormatada, inline: true },
+                    { name: '🕒 Saída em', value: `<t:${Math.floor(now / 1000)}:F>`, inline: true }
+                )
+                .setThumbnail(member.user.displayAvatarURL())
+                .setFooter({ text: `ID: ${member.user.id}` })
+                .setTimestamp();
+            await leaveChannel.send({ embeds: [embed] }).catch(console.error);
+        } else {
+            console.error(`SEM PERMISSÃO para enviar no canal ${leaveChannel.name} (${leaveChannel.id})`);
+        }
     } else {
-        console.log(`Canal de saída com ID ${ID_CANAL_SAIDA} não encontrado ou não é texto.`);
+        console.error(`Canal de saída com ID ${ID_CANAL_SAIDA} não encontrado.`);
+        // Fallback: tenta encontrar por nome e envia aviso
+        const fallback = member.guild.channels.cache.find(c => c.name === '🚪・saida' && c.isTextBased());
+        if (fallback) {
+            await fallback.send(`⚠️ **ERRO:** Canal de saída com ID ${ID_CANAL_SAIDA} não encontrado, mas este canal foi usado como fallback.\nMembro: ${member.user.tag} (${member.user.id}) saiu.`).catch(console.error);
+        }
     }
 
     // Log interno de saída
@@ -324,7 +365,7 @@ client.on('guildMemberRemove', async member => {
     await sendLog(member.guild, CANAL_MEMBROS, logEmbed);
 });
 
-// ==================== MODLOG PROFISSIONAL (CARGOS) ====================
+// ==================== MODLOG (CARGOS) ====================
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
     if (oldMember.nickname !== newMember.nickname) {
         const e = createLogEmbed('✏️ APELIDO ALTERADO', 0xFFA500, [
@@ -403,7 +444,7 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
     }
 });
 
-// ==================== OUTROS EVENTOS DE LOG (resumidos) ====================
+// ==================== OUTROS EVENTOS DE LOG (resumido porém completo) ====================
 client.on('voiceStateUpdate', async (oldState, newState) => {
     const member = newState.member || oldState.member;
     if (!member || member.user.bot) return;
@@ -528,7 +569,7 @@ client.on('guildBanRemove', async ban => {
     await sendLog(ban.guild, CANAL_PUNICOES, e);
 });
 
-// ==================== AUTOMOD ====================
+// ==================== AUTOMOD (PALAVRÕES E CONVITES) ====================
 client.on('messageCreate', async msg => {
     if (msg.author.bot) return;
     const lower = msg.content.toLowerCase();
@@ -598,6 +639,7 @@ client.on('messageCreate', async message => {
         const embed = new EmbedBuilder().setColor(0xFFD700).setTitle('🏆 RANKING').setDescription(desc);
         return message.reply({ embeds: [embed] });
     }
+
     if (getNivel(member) === 0) return message.reply('❌ Sem permissão.');
 
     // KICK
