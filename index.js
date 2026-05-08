@@ -7,7 +7,7 @@ const port = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Bot Atlas RP está online'));
 app.listen(port, () => console.log(`✅ Web server na porta ${port}`));
 
-// ==================== CANAIS ====================
+// ==================== CANAIS (POR NOME, EXCETO SAÍDA QUE USA ID) ====================
 const CANAL_MEMBROS = '📥・logs-membros';
 const CANAL_AUTOMOD = '🤖・logs-automod';
 const CANAL_PUNICOES = '📋・punição-discord';
@@ -25,7 +25,8 @@ const CANAL_WEBHOOKS = '🔗・logs-webhooks';
 const CANAL_BOOSTS = '💪・logs-boosts';
 const CANAL_MODLOG = '📜・acervo-mod-logs';
 const CANAL_BOAS_VINDAS = '📌・boas-vindas';
-const CANAL_SAIDA = '🚪・saida';
+// Canal de SAÍDA usa ID fixo (não depende do nome)
+const ID_CANAL_SAIDA = '1498035038443536394';
 
 const LISTA_CANAIS_LOG = [
     { nome: CANAL_MEMBROS, desc: '📥 Entrada/saída, voz e apelidos' },
@@ -117,7 +118,7 @@ async function criarCanaisLog(guild) {
             console.log(`✅ Canal criado: ${canal.nome} em ${guild.name}`);
         }
     }
-    // NÃO criar canais de boas-vindas e saída – eles já existem
+    // NÃO criar canais de boas-vindas e saída – eles já existem (saída usa ID)
 }
 
 // ==================== SLASH COMMANDS ====================
@@ -275,11 +276,10 @@ Equipe Atlas RP`)
     await sendLog(member.guild, CANAL_MEMBROS, logEmbed);
 });
 
-// ==================== SAÍDA (EMBED PROFISSIONAL) ====================
+// ==================== SAÍDA (USANDO ID FIXO) ====================
 client.on('guildMemberRemove', async member => {
-    const leaveChannel = member.guild.channels.cache.find(c => c.name === CANAL_SAIDA && c.isTextBased());
-    if (leaveChannel) {
-        // Calcular tempo no servidor (joinedTimestamp é quando ele entrou)
+    const leaveChannel = member.guild.channels.cache.get(ID_CANAL_SAIDA);
+    if (leaveChannel && leaveChannel.isTextBased()) {
         const joinedAt = member.joinedTimestamp;
         const now = Date.now();
         const diffMs = now - joinedAt;
@@ -291,11 +291,9 @@ client.on('guildMemberRemove', async member => {
         else if (diffHours > 0) tempoTexto = `${diffHours} hora(s)`;
         else tempoTexto = `${diffMinutes} minuto(s)`;
 
-        // Data de entrada formatada
         const entradaDate = new Date(joinedAt);
         const entradaFormatada = entradaDate.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-        // Cargos do membro (ignorar @everyone)
         const cargos = member.roles.cache.filter(r => r.id !== member.guild.id).map(r => `<@&${r.id}>`).join(' | ') || 'Nenhum cargo';
 
         const embed = new EmbedBuilder()
@@ -314,7 +312,7 @@ client.on('guildMemberRemove', async member => {
             .setTimestamp();
         await leaveChannel.send({ embeds: [embed] }).catch(console.error);
     } else {
-        console.log(`Canal de saída "${CANAL_SAIDA}" não encontrado.`);
+        console.log(`Canal de saída com ID ${ID_CANAL_SAIDA} não encontrado ou não é texto.`);
     }
 
     // Log interno de saída
