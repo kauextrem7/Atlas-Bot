@@ -224,7 +224,12 @@ client.once('ready', async () => {
 client.on('guildMemberAdd', async member => {
     const welcomeChannel = member.guild.channels.cache.find(c => c.name === CANAL_BOAS_VINDAS && c.isTextBased());
     if (welcomeChannel) {
-        // Embed azul
+        // IDs dos canais fornecidos pelo usuário
+        const idCodigo = '1497746225829777448';
+        const idRegrasDiscord = '1497661394936660049';
+        const idRegrasInGame = '1497661392864411779';
+        const idSuporte = '1497758992938827856';
+
         const embed = new EmbedBuilder()
             .setColor(0x00AAFF) // AZUL
             .setAuthor({ name: 'Bem-vindo ao Atlas RP!', iconURL: member.user.displayAvatarURL() })
@@ -238,10 +243,10 @@ Nosso objetivo é permitir que cada jogador seja o protagonista da sua própria 
 Antes de começar, pedimos que você leia atentamente as regras do servidor e siga as orientações da comunidade. Isso garante um ambiente justo e agradável para todos os cidadãos.
 
 📍 Links importantes:
-🎮 | Codigo: <#1497746225289777448>
-📜 | Regras discord: <#1497661394936660049> 
-📄 | Regras in-game: <#1497661392864411779>
-🛡️ | Suporte: <#1497758992938827856>   
+🎮 | Codigo: <#${idCodigo}>
+📜 | Regras discord: <#${idRegrasDiscord}>
+📄 | Regras in-game: <#${idRegrasInGame}>
+🛡️ | Suporte: <#${idSuporte}>
 
 Esperamos que você aproveite cada momento e se prepare para carregar o destino da sua história aqui no Atlas RP.
 
@@ -251,15 +256,15 @@ Equipe Atlas RP`)
             .setThumbnail(member.user.displayAvatarURL())
             .setFooter({ text: `ID do usuário: ${member.user.id}` })
             .setTimestamp();
-        await welcomeChannel.send({ embeds: [embed] }).catch(() => {});
+        await welcomeChannel.send({ embeds: [embed] }).catch(console.error);
     }
 
-    // MENSAGEM NO DM (Direct Message)
+    // MENSAGEM NO DM
     try {
         const dmEmbed = new EmbedBuilder()
             .setColor(0x00AAFF)
             .setTitle('📥 Bem-vindo ao Atlas RP!')
-            .setDescription(`Olá ${member.user}!\n\nFicamos muito felizes em ter você conosco.\n\n📌 **Links importantes:**\n• <#1497746225289777448>\n• <#1497661394936660049>\n• <#1497661392864411779>\n• <#1497758992938827856>\n\nAproveite sua estadia!`)
+            .setDescription(`Olá ${member.user}!\n\nFicamos muito felizes em ter você conosco.\n\n📌 **Links importantes:**\n• <#1497746225829777448>\n• <#1497661394936660049>\n• <#1497661392864411779>\n• <#1497758992938827856>\n\nAproveite sua estadia!`)
             .setFooter({ text: `ID: ${member.user.id}` })
             .setTimestamp();
         await member.send({ embeds: [dmEmbed] });
@@ -280,7 +285,13 @@ Equipe Atlas RP`)
 client.on('guildMemberRemove', async member => {
     const leaveChannel = member.guild.channels.cache.find(c => c.name === CANAL_SAIDA && c.isTextBased());
     if (leaveChannel) {
-        await leaveChannel.send(`${member.user.tag} (**${member.user.id}**) saiu do servidor.`).catch(() => {});
+        try {
+            await leaveChannel.send(`${member.user.tag} (**${member.user.id}**) saiu do servidor.`);
+        } catch (err) {
+            console.error(`Erro ao enviar mensagem de saída no canal ${CANAL_SAIDA}:`, err);
+        }
+    } else {
+        console.log(`Canal de saída "${CANAL_SAIDA}" não encontrado.`);
     }
     const logEmbed = createLogEmbed('📤 MEMBRO SAIU', 0xFF0000, [
         { name: '👤 Membro', value: `${member.user.tag} (${member.id})`, inline: true },
