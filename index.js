@@ -220,18 +220,12 @@ client.once('ready', async () => {
     console.log('🟢 Bot pronto!');
 });
 
-// ==================== ENTRADA (BOAS-VINDAS) – CORRIGIDO ====================
+// ==================== ENTRADA (BOAS-VINDAS) ====================
 client.on('guildMemberAdd', async member => {
     const welcomeChannel = member.guild.channels.cache.find(c => c.name === CANAL_BOAS_VINDAS && c.isTextBased());
     if (welcomeChannel) {
-        // IDs dos canais fornecidos pelo usuário
-        const idCodigo = '1497746225829777448';
-        const idRegrasDiscord = '1497661394936660049';
-        const idRegrasInGame = '1497661392864411779';
-        const idSuporte = '1497758992938827856';
-
         const embed = new EmbedBuilder()
-            .setColor(0x00AAFF) // AZUL
+            .setColor(0x00AAFF)
             .setAuthor({ name: 'Bem-vindo ao Atlas RP!', iconURL: member.user.displayAvatarURL() })
             .setTitle('🌎 Bem-vindo ao Atlas RP!')
             .setDescription(`Olá, ${member.user} seja muito bem-vindo à nossa comunidade.
@@ -243,10 +237,10 @@ Nosso objetivo é permitir que cada jogador seja o protagonista da sua própria 
 Antes de começar, pedimos que você leia atentamente as regras do servidor e siga as orientações da comunidade. Isso garante um ambiente justo e agradável para todos os cidadãos.
 
 📍 Links importantes:
-🎮 | Codigo: <#${idCodigo}>
-📜 | Regras discord: <#${idRegrasDiscord}>
-📄 | Regras in-game: <#${idRegrasInGame}>
-🛡️ | Suporte: <#${idSuporte}>
+🎮 | Codigo: <#1497746225829777448>
+📜 | Regras discord: <#1497661394936660049>
+📄 | Regras in-game: <#1497661392864411779>
+🛡️ | Suporte: <#1497758992938827856>
 
 Esperamos que você aproveite cada momento e se prepare para carregar o destino da sua história aqui no Atlas RP.
 
@@ -259,7 +253,7 @@ Equipe Atlas RP`)
         await welcomeChannel.send({ embeds: [embed] }).catch(console.error);
     }
 
-    // MENSAGEM NO DM
+    // DM
     try {
         const dmEmbed = new EmbedBuilder()
             .setColor(0x00AAFF)
@@ -272,7 +266,7 @@ Equipe Atlas RP`)
         console.log(`Não foi possível enviar DM para ${member.user.tag}: ${err}`);
     }
 
-    // Log normal no canal de membros
+    // Log interno
     const logEmbed = createLogEmbed('📥 MEMBRO ENTROU', 0x00FF00, [
         { name: '👤 Membro', value: `${member.user.tag} (${member.id})`, inline: true },
         { name: '📅 Conta criada', value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`, inline: true },
@@ -281,18 +275,49 @@ Equipe Atlas RP`)
     await sendLog(member.guild, CANAL_MEMBROS, logEmbed);
 });
 
-// ==================== SAÍDA – CORRIGIDO ====================
+// ==================== SAÍDA (EMBED PROFISSIONAL) ====================
 client.on('guildMemberRemove', async member => {
     const leaveChannel = member.guild.channels.cache.find(c => c.name === CANAL_SAIDA && c.isTextBased());
     if (leaveChannel) {
-        try {
-            await leaveChannel.send(`${member.user.tag} (**${member.user.id}**) saiu do servidor.`);
-        } catch (err) {
-            console.error(`Erro ao enviar mensagem de saída no canal ${CANAL_SAIDA}:`, err);
-        }
+        // Calcular tempo no servidor (joinedTimestamp é quando ele entrou)
+        const joinedAt = member.joinedTimestamp;
+        const now = Date.now();
+        const diffMs = now - joinedAt;
+        const diffMinutes = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        let tempoTexto = '';
+        if (diffDays > 0) tempoTexto = `${diffDays} dia(s)`;
+        else if (diffHours > 0) tempoTexto = `${diffHours} hora(s)`;
+        else tempoTexto = `${diffMinutes} minuto(s)`;
+
+        // Data de entrada formatada
+        const entradaDate = new Date(joinedAt);
+        const entradaFormatada = entradaDate.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+        // Cargos do membro (ignorar @everyone)
+        const cargos = member.roles.cache.filter(r => r.id !== member.guild.id).map(r => `<@&${r.id}>`).join(' | ') || 'Nenhum cargo';
+
+        const embed = new EmbedBuilder()
+            .setColor(0xFF5555)
+            .setAuthor({ name: '👤 Membro saiu!', iconURL: member.user.displayAvatarURL() })
+            .setDescription(`**${member.user.tag}** saiu do servidor!`)
+            .addFields(
+                { name: '📊 Membros atuais', value: `${member.guild.memberCount}`, inline: true },
+                { name: '⏱️ Tempo no servidor', value: tempoTexto, inline: true },
+                { name: '🏷️ Cargos', value: cargos, inline: false },
+                { name: '📅 Entrada em', value: entradaFormatada, inline: true },
+                { name: '🕒 Saída em', value: `<t:${Math.floor(now / 1000)}:F>`, inline: true }
+            )
+            .setThumbnail(member.user.displayAvatarURL())
+            .setFooter({ text: `ID: ${member.user.id}` })
+            .setTimestamp();
+        await leaveChannel.send({ embeds: [embed] }).catch(console.error);
     } else {
         console.log(`Canal de saída "${CANAL_SAIDA}" não encontrado.`);
     }
+
+    // Log interno de saída
     const logEmbed = createLogEmbed('📤 MEMBRO SAIU', 0xFF0000, [
         { name: '👤 Membro', value: `${member.user.tag} (${member.id})`, inline: true },
         { name: '📅 Entrou em', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`, inline: true },
@@ -380,7 +405,7 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
     }
 });
 
-// ==================== OUTROS EVENTOS DE LOG (resumidos mas completos) ====================
+// ==================== OUTROS EVENTOS DE LOG (resumidos) ====================
 client.on('voiceStateUpdate', async (oldState, newState) => {
     const member = newState.member || oldState.member;
     if (!member || member.user.bot) return;
@@ -800,7 +825,7 @@ client.on('messageCreate', async message => {
     }
 });
 
-// ==================== MODAL DE AVALIAÇÃO (CORRIGIDO) ====================
+// ==================== MODAL DE AVALIAÇÃO ====================
 client.on('interactionCreate', async interaction => {
     if (interaction.isModalSubmit() && interaction.customId === 'avaliarModal') {
         const now = Date.now();
@@ -816,7 +841,6 @@ client.on('interactionCreate', async interaction => {
         const canalAval = interaction.guild.channels.cache.find(c => c.name === CANAL_AVALIACOES);
         if (!canalAval) return interaction.reply({ content: `❌ Canal ${CANAL_AVALIACOES} não encontrado.`, ephemeral: true });
         
-        // Busca robusta do staff
         let userId = null;
         let membro = null;
         const input = staffInput.trim();
@@ -852,7 +876,7 @@ client.on('interactionCreate', async interaction => {
         if (!userId || !membro) {
             return interaction.reply({ content: '❌ Staff não encontrado. Use o ID ou marque corretamente (@).', ephemeral: true });
         }
-        if (!isStaff(membro)) return interaction.reply({ content: '❌ Este membro não possui cargo de staff ou não é elegível para avaliação.', ephemeral: true });
+        if (!isStaff(membro)) return interaction.reply({ content: '❌ Este membro não possui cargo de staff.', ephemeral: true });
         
         if (!avaliacoes.has(userId)) avaliacoes.set(userId, []);
         avaliacoes.get(userId).push({ nota, motivo, avaliador: interaction.user.tag, data: new Date() });
