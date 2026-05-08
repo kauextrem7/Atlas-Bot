@@ -181,14 +181,13 @@ const warns = new Map();
 const avaliacoes = new Map();
 const staffWarns = new Map();
 
-// ==================== MENSAGEM ROTATIVA DE AVALIAÇÃO (apaga anterior e envia nova a cada 15min) ====================
+// ==================== MENSAGEM ROTATIVA DE AVALIAÇÃO ====================
 let avaliacaoMsg = null;
 let intervaloRotativo = null;
 async function enviarMsgAvaliacao(guild) {
     const canal = guild.channels.cache.find(c => c.name === CANAL_AVALIACOES && c.isTextBased());
     if (!canal) return;
     try {
-        // Apaga a mensagem anterior, se existir
         if (avaliacaoMsg && avaliacaoMsg.author?.id === client.user.id) {
             try { await avaliacaoMsg.delete(); } catch(e) {}
         }
@@ -221,12 +220,13 @@ client.once('ready', async () => {
     console.log('🟢 Bot pronto!');
 });
 
-// ==================== ENTRADA (BOAS-VINDAS) – EXATAMENTE COMO PEDIDO ====================
+// ==================== ENTRADA (BOAS-VINDAS) – CORRIGIDO ====================
 client.on('guildMemberAdd', async member => {
     const welcomeChannel = member.guild.channels.cache.find(c => c.name === CANAL_BOAS_VINDAS && c.isTextBased());
     if (welcomeChannel) {
+        // Embed azul
         const embed = new EmbedBuilder()
-            .setColor(0x00FF00)
+            .setColor(0x00AAFF) // AZUL
             .setAuthor({ name: 'Bem-vindo ao Atlas RP!', iconURL: member.user.displayAvatarURL() })
             .setTitle('🌎 Bem-vindo ao Atlas RP!')
             .setDescription(`Olá, ${member.user} seja muito bem-vindo à nossa comunidade.
@@ -253,6 +253,20 @@ Equipe Atlas RP`)
             .setTimestamp();
         await welcomeChannel.send({ embeds: [embed] }).catch(() => {});
     }
+
+    // MENSAGEM NO DM (Direct Message)
+    try {
+        const dmEmbed = new EmbedBuilder()
+            .setColor(0x00AAFF)
+            .setTitle('📥 Bem-vindo ao Atlas RP!')
+            .setDescription(`Olá ${member.user}!\n\nFicamos muito felizes em ter você conosco.\n\n📌 **Links importantes:**\n• <#1497746225289777448>\n• <#1497661394936660049>\n• <#1497661392864411779>\n• <#1497758992938827856>\n\nAproveite sua estadia!`)
+            .setFooter({ text: `ID: ${member.user.id}` })
+            .setTimestamp();
+        await member.send({ embeds: [dmEmbed] });
+    } catch (err) {
+        console.log(`Não foi possível enviar DM para ${member.user.tag}: ${err}`);
+    }
+
     // Log normal no canal de membros
     const logEmbed = createLogEmbed('📥 MEMBRO ENTROU', 0x00FF00, [
         { name: '👤 Membro', value: `${member.user.tag} (${member.id})`, inline: true },
@@ -262,7 +276,7 @@ Equipe Atlas RP`)
     await sendLog(member.guild, CANAL_MEMBROS, logEmbed);
 });
 
-// ==================== SAÍDA ====================
+// ==================== SAÍDA – CORRIGIDO ====================
 client.on('guildMemberRemove', async member => {
     const leaveChannel = member.guild.channels.cache.find(c => c.name === CANAL_SAIDA && c.isTextBased());
     if (leaveChannel) {
@@ -276,7 +290,7 @@ client.on('guildMemberRemove', async member => {
     await sendLog(member.guild, CANAL_MEMBROS, logEmbed);
 });
 
-// ==================== MODLOG PROFISSIONAL (CARGOS) – CORRIGIDO ====================
+// ==================== MODLOG PROFISSIONAL (CARGOS) ====================
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
     if (oldMember.nickname !== newMember.nickname) {
         const e = createLogEmbed('✏️ APELIDO ALTERADO', 0xFFA500, [
