@@ -45,7 +45,7 @@ const LISTA_CANAIS_LOG = [
     { nome: CANAL_MODLOG, desc: '📜 ModLog estilo Probot (adição/remoção de cargos com executor)' }
 ];
 
-// ==================== HIERARQUIA DE CARGOS ====================
+// ==================== HIERARQUIA ====================
 const CARGOS_LEVEL = {
     'Staff': 1,
     'Estagiário(a)': 2,
@@ -122,19 +122,6 @@ function barraNota(nota) {
     return '▰'.repeat(p) + '▱'.repeat(20 - p);
 }
 
-async function getCargoAtual(member) {
-    let niv = 0, nome = null;
-    for (let [cargo, nivel] of Object.entries(CARGOS_LEVEL)) {
-        if (member.roles.cache.some(r => r.name === cargo) && nivel > niv) { niv = nivel; nome = cargo; }
-    }
-    if (niv === 0 && member.roles.cache.some(r => r.name === 'Staff')) return { nome: 'Staff', nivel: 1 };
-    return { nome, nivel: niv };
-}
-function getCargoNome(nivel) {
-    const entry = Object.entries(CARGOS_LEVEL).find(([_, v]) => v === nivel);
-    return entry ? entry[0] : 'Nenhum';
-}
-
 async function criarCanaisLog(guild) {
     let cat = guild.channels.cache.find(c => c.name === '📁 LOGS' && c.type === ChannelType.GuildCategory);
     if (!cat) {
@@ -147,7 +134,7 @@ async function criarCanaisLog(guild) {
             console.log(`✅ Canal criado: ${canal.nome} em ${guild.name}`);
         }
     }
-    // Não cria 📌・boas-vindas nem 🚪・saida – eles já existem
+    // Não cria os canais de boas-vindas e saída (já existem)
 }
 
 // ==================== SLASH COMMANDS ====================
@@ -237,7 +224,6 @@ async function enviarMsgAvaliacao(guild) {
     } catch (err) { console.error('Erro na mensagem rotativa:', err); }
 }
 
-// ==================== READY ====================
 client.once('ready', async () => {
     console.log(`✅ Bot ${client.user.tag} online!`);
     client.user.setPresence({ activities: [{ name: 'Atlas RP | /ajuda', type: 0 }], status: 'online' });
@@ -251,7 +237,7 @@ client.once('ready', async () => {
     console.log('🟢 Bot pronto!');
 });
 
-// ==================== ENTRADA (📌・boas-vindas) ====================
+// ==================== ENTRADA ====================
 client.on('guildMemberAdd', async member => {
     const welcomeChannel = member.guild.channels.cache.find(c => c.name === CANAL_BOAS_VINDAS && c.isTextBased());
     if (welcomeChannel) {
@@ -284,7 +270,7 @@ Equipe Atlas RP`)
         await welcomeChannel.send({ embeds: [embed] }).catch(console.error);
     }
 
-    // Mensagem privada (DM)
+    // DM
     try {
         const dmEmbed = new EmbedBuilder()
             .setColor(0x00AAFF)
@@ -306,11 +292,11 @@ Equipe Atlas RP`)
     await sendLog(member.guild, CANAL_MEMBROS, logEmbed);
 });
 
-// ==================== SAÍDA (🚪・saida) – USANDO ID FIXO ====================
+// ==================== SAÍDA (COM ID FIXO E FALLBACK) ====================
 client.on('guildMemberRemove', async member => {
+    // 1) Tenta enviar o embed bonito no canal 🚪・saida usando o ID fixo
     const leaveChannel = member.guild.channels.cache.get(ID_CANAL_SAIDA);
     if (leaveChannel && leaveChannel.isTextBased()) {
-        // Permissão do bot
         const botMember = member.guild.members.me;
         if (leaveChannel.permissionsFor(botMember).has(PermissionsBitField.Flags.SendMessages)) {
             const joinedAt = member.joinedTimestamp;
@@ -344,19 +330,32 @@ client.on('guildMemberRemove', async member => {
                 .setFooter({ text: `ID: ${member.user.id}` })
                 .setTimestamp();
             await leaveChannel.send({ embeds: [embed] }).catch(console.error);
+            console.log(`✅ Mensagem de saída enviada para o canal ${leaveChannel.name} (${leaveChannel.id})`);
         } else {
-            console.error(`SEM PERMISSÃO para enviar no canal ${leaveChannel.name} (${leaveChannel.id})`);
+            console.error(`❌ Sem permissão para enviar no canal de saída com ID ${ID_CANAL_SAIDA}`);
         }
     } else {
-        console.error(`Canal de saída com ID ${ID_CANAL_SAIDA} não encontrado.`);
-        // Fallback: tenta encontrar por nome e envia aviso
-        const fallback = member.guild.channels.cache.find(c => c.name === '🚪・saida' && c.isTextBased());
-        if (fallback) {
-            await fallback.send(`⚠️ **ERRO:** Canal de saída com ID ${ID_CANAL_SAIDA} não encontrado, mas este canal foi usado como fallback.\nMembro: ${member.user.tag} (${member.user.id}) saiu.`).catch(console.error);
+        console.error(`❌ Canal de saída com ID ${ID_CANAL_SAIDA} não encontrado.`);
+        // Fallback: tenta encontrar pelo nome "🚪・saida"
+        const fallbackChannel = member.guild.channels.cache.find(c => c.name === '🚪・saida' && c.isTextBased());
+        if (fallbackChannel) {
+            const embed = new EmbedBuilder()
+                .setColor(0xFF5555)
+                .setAuthor({ name: '👤 Membro saiu!', iconURL: member.user.displayAvatarURL() })
+                .setDescription(`**${member.user.tag}** saiu do servidor!`)
+                .addFields(
+                    { name: '📊 Membros atuais', value: `${member.guild.memberCount}`, inline: true },
+                    { name: '🕒 Saída em', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
+                )
+                .setTimestamp();
+            await fallbackChannel.send({ embeds: [embed] }).catch(console.error);
+            console.log(`✅ Fallback: mensagem de saída enviada para o canal ${fallbackChannel.name} (pelo nome)`);
+        } else {
+            console.error(`❌ Canal de saída com nome "🚪・saida" também não foi encontrado.`);
         }
     }
 
-    // Log interno de saída
+    // 2) SEMPRE envia o log simples no canal de logs de membros (📥・logs-membros)
     const logEmbed = createLogEmbed('📤 MEMBRO SAIU', 0xFF0000, [
         { name: '👤 Membro', value: `${member.user.tag} (${member.id})`, inline: true },
         { name: '📅 Entrou em', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`, inline: true },
@@ -444,7 +443,7 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
     }
 });
 
-// ==================== OUTROS EVENTOS DE LOG (resumido porém completo) ====================
+// ==================== OUTROS EVENTOS DE LOG ====================
 client.on('voiceStateUpdate', async (oldState, newState) => {
     const member = newState.member || oldState.member;
     if (!member || member.user.bot) return;
@@ -569,7 +568,7 @@ client.on('guildBanRemove', async ban => {
     await sendLog(ban.guild, CANAL_PUNICOES, e);
 });
 
-// ==================== AUTOMOD (PALAVRÕES E CONVITES) ====================
+// ==================== AUTOMOD ====================
 client.on('messageCreate', async msg => {
     if (msg.author.bot) return;
     const lower = msg.content.toLowerCase();
@@ -609,7 +608,7 @@ client.on('messageCreate', async msg => {
     }
 });
 
-// ==================== COMANDOS DE PREFIXO (>) ====================
+// ==================== COMANDOS DE PREFIXO ====================
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
     if (!message.content.startsWith('>')) return;
@@ -639,7 +638,6 @@ client.on('messageCreate', async message => {
         const embed = new EmbedBuilder().setColor(0xFFD700).setTitle('🏆 RANKING').setDescription(desc);
         return message.reply({ embeds: [embed] });
     }
-
     if (getNivel(member) === 0) return message.reply('❌ Sem permissão.');
 
     // KICK
@@ -752,7 +750,7 @@ client.on('messageCreate', async message => {
         const embed = new EmbedBuilder().setColor(0xFFA500).setTitle(`📋 WARNS de ${user.tag}`).setDescription(desc);
         return message.reply({ embeds: [embed] });
     }
-    // CLEAR (prefixo)
+    // CLEAR
     if (cmd === 'clear' && podeClear(member)) {
         let quantidade = parseInt(args[0]);
         if (isNaN(quantidade) || quantidade < 2) return message.reply('❌ Use: `>clear <2-10000>`');
@@ -829,7 +827,7 @@ client.on('messageCreate', async message => {
         } catch (err) { message.reply('❌ Erro ao destrancar o canal.'); }
         return;
     }
-    // HACKBAN (prefixo)
+    // HACKBAN
     if (cmd === 'hackban' && podeHackban(member)) {
         const user = message.mentions.users.first();
         if (!user) return message.reply('❌ Mencione um usuário para hackban.');
@@ -939,7 +937,7 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// ==================== SLASH COMMANDS (RESTANTES) ====================
+// ==================== SLASH COMMANDS RESTANTES ====================
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName, member, guild, user } = interaction;
